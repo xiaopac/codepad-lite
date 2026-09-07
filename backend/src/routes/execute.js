@@ -1,8 +1,12 @@
 const express = require('express');
+const { body } = require('express-validator');
 const HttpError = require('../utils/HttpError');
 const { requireAuth } = require('../middleware/auth');
 const piston = require('../services/piston');
 const { VERSION_MAP } = require('../services/envBuilder');
+const { validate } = require('../middleware/validation');
+const { executeLimiter } = require('../utils/rateLimiter');
+const { logger } = require('../utils/logger');
 const db = require('../db');
 
 const router = express.Router();
@@ -10,6 +14,26 @@ router.use(requireAuth);
 
 const MAX_CODE_LENGTH = 200000; // 200KB
 const MAX_STDIN_LENGTH = 100000; // 100KB
+
+// ── 并发控制：同一时刻最多 5 个执行任务（需求 2.2），防止资源耗尽 ──
+class Semaphore {
+  constructor(n) {
+    this.n = n;
+    this.queue = [];
+  }
+  async acquire() {
+    if (this.n > 0) {
+      this.n--;
+      return;
+    }
+    await new Promise((resolve) => this.queue.push(resolve));
+  }
+  release() {
+    if (this.queue.length > 0) this.queue.shift()();
+    else this.n++;
+  }
+}
+const execSemaphore = new Semaphore(5);
 
 // 执行结果归类（管理员后台审计）
 function classifyResult(result) {
@@ -36,13 +60,22 @@ function logExecution(userId, language, codeLength, status, result) {
       codeLength,
     );
   } catch (err) {
-    console.warn('[log] 执行日志写入失败：', err.message);
+    logger.warn(`[exec] 执行日志写入失败：${err.message}`);
   }
 }
 
 // POST /api/execute  { language: "cpp"|"python", code, stdin, environment_id? }
 // -> { stdout, stderr, compile_error, execution_time, exit_code }（需鉴权）
-router.post('/', async (req, res) => {
+router.post(
+  '/',
+  executeLimiter, // 每用户每分钟 10 次（需求 1.6）
+  validate([
+    body('language').isIn(['cpp', 'python']).withMessage('仅支持 cpp / python 两种语言'),
+    body('code').isString().withMessage('code 必须是字符串'),
+    body('stdin').optional().isString().withMessage('stdin 必须是字符串'),
+    body('environment_id').optional().isInt({ min: 1 }).withMessage('environment_id 不合法'),
+  ]),
+  async (req, res) => {
   const { language, code, stdin, environment_id } = req.body ?? {};
 
   if (language !== 'cpp' && language !== 'python') {
@@ -75,6 +108,7 @@ router.post('/', async (req, res) => {
 
   let result = null;
   let status = 'engine_error';
+  await execSemaphore.acquire(); // 并发上限 5（需求 2.2）
   try {
     result = await piston.execute(language, code, stdinText, preferredVersion);
     status = classifyResult(result);
@@ -84,6 +118,11 @@ router.post('/', async (req, res) => {
     throw err;
   } finally {
     logExecution(req.user.id, language, code.length, status, result);
+    logger.info(
+      `[exec] user#${req.user.id} ${language} -> ${status}` +
+        (result && typeof result.execution_time === 'number' ? ` (${result.execution_time.toFixed(2)}s)` : ''),
+    );
+    execSemaphore.release();
   }
 });
 

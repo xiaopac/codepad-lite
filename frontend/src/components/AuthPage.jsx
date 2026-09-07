@@ -156,7 +156,7 @@ export default function AuthPage() {
                 className="input-line"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="至少 6 位"
+                placeholder={mode === 'register' ? '至少 8 位，含大小写字母和数字' : '请输入密码'}
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 required
               />

@@ -141,4 +141,12 @@ if (!db.prepare('PRAGMA table_info(environments)').all().some((c) => c.name === 
   db.exec('ALTER TABLE environments ADD COLUMN build_log TEXT');
 }
 
+// 查询加速索引（需求 2.1）：外键与高频过滤列
+db.exec(`
+CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_files_project ON files(project_id);
+CREATE INDEX IF NOT EXISTS idx_environments_user ON environments(user_id);
+CREATE INDEX IF NOT EXISTS idx_execution_logs_user ON execution_logs(user_id);
+`);
+
 module.exports = db;

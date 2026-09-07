@@ -222,12 +222,15 @@ codepad-lite/
 - **运行时自动安装**：后端启动后探测 `/api/v2/runtimes`，缺失的 cpp/python 会通过
   `/api/v2/packages` 自动安装，`docker compose up` 后无需手工步骤。
 
-### 安全
-- 密码 bcrypt（10 轮）存储；JWT 有效期 7 天，存 localStorage；
-- 所有项目/文件查询强制带 `user_id` 归属校验（越权访问返回 404）；
-- 项目名/文件名白名单校验，防御路径穿越；SQL 全部参数化（better-sqlite3 预编译语句）；
-- 代码执行隔离由 Piston（isolate 沙箱 + privileged 容器 + 默认禁网）保证；
-- 单次代码 ≤ 200KB，stdin ≤ 100KB，请求体 ≤ 1MB。
+### 安全（生产加固）
+- 密码 bcrypt（cost 10）+ 复杂度强制（≥8 位含大小写+数字）；JWT HS256、7 天，每次请求实时校验账号状态；
+- **限流防爆破**：全局 120 次/分/IP，登录注册 20 次/分/IP，代码执行 10 次/分/用户（RateLimit 响应头）；
+- **统一参数校验**（express-validator）：邮箱/密码/项目名/文件名/库名全部白名单校验，路径穿越与命令注入双重防护（正则 + path.resolve 越界检查）；
+- **安全响应头**：CSP（script-src 'self'，样式允许 inline 供 Monaco）、helmet（nosniff/frame/HSTS 等）、CORS 默认同源（白名单可配）；
+- **上传安全**：背景图 MIME 白名单 + 魔数嗅探（真实类型必须与声明一致）+ 2.5MB 上限；
+- **错误信息脱敏**：生产响应不含堆栈；winston 日志按日轮转保留 30 天，邮箱等敏感信息脱敏记录；
+- 执行并发上限 5、超时 10s、Piston 沙箱默认禁网；代码 ≤ 200KB、stdin ≤ 100KB；
+- 容器健康检查（healthcheck）+ 资源限额（内存上限）+ 数据卷备份脚本（`scripts/backup.ps1|sh`）。
 
 ---
 

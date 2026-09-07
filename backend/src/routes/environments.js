@@ -1,15 +1,17 @@
 // 用户自定义 Python 环境：增删查 + 构建/重建
 const express = require('express');
+const { body } = require('express-validator');
 const db = require('../db');
 const HttpError = require('../utils/HttpError');
 const { requireAuth } = require('../middleware/auth');
+const { validate, PKG_RE } = require('../middleware/validation');
+const { logger, maskEmail } = require('../utils/logger');
 const { buildEnvironment, packagesOf, VERSION_MAP } = require('../services/envBuilder');
 
 const router = express.Router();
 router.use(requireAuth);
 
 const NAME_RE = /^[A-Za-z0-9_\u4e00-\u9fa5 .-]{1,30}$/;
-const PKG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const ALLOWED_VERSIONS = Object.keys(VERSION_MAP);
 
 function toEnv(row) {
@@ -46,30 +48,35 @@ router.get('/', (req, res) => {
 });
 
 // POST /api/environments  { name, python_version, packages: string[] }
-router.post('/', (req, res) => {
-  const name = String(req.body?.name ?? '').trim();
-  const pythonVersion = String(req.body?.python_version ?? '').trim();
-  const packages = Array.isArray(req.body?.packages)
-    ? req.body.packages.map((p) => String(p).trim().toLowerCase()).filter(Boolean)
-    : [];
+router.post(
+  '/',
+  validate([
+    body('name').trim().matches(NAME_RE).withMessage('环境名需为 1-30 位字符'),
+    body('python_version').isIn(ALLOWED_VERSIONS).withMessage('仅支持 3.9 / 3.10 / 3.11'),
+    body('packages').optional().isArray().withMessage('packages 必须是数组'),
+    body('packages.*').optional().matches(PKG_RE).withMessage('库名不合法（字母数字开头，可含 . _ -）'),
+  ]),
+  (req, res) => {
+    const name = String(req.body?.name ?? '').trim();
+    const pythonVersion = String(req.body?.python_version ?? '').trim();
+    const packages = Array.isArray(req.body?.packages)
+      ? req.body.packages.map((p) => String(p).trim().toLowerCase()).filter(Boolean)
+      : [];
 
-  if (!NAME_RE.test(name)) throw new HttpError(400, '环境名需为 1-30 位字符');
-  if (!ALLOWED_VERSIONS.includes(pythonVersion)) throw new HttpError(400, '仅支持 3.9 / 3.10 / 3.11');
-  if (packages.length > 50) throw new HttpError(400, '最多 50 个库');
-  for (const p of packages) {
-    if (!PKG_RE.test(p)) throw new HttpError(400, `库名不合法：${p}`);
-  }
+    if (packages.length > 50) throw new HttpError(400, '最多 50 个库');
 
-  const info = db
-    .prepare(
-      "INSERT INTO environments (user_id, name, python_version, packages, status) VALUES (?, ?, ?, ?, 'building')",
-    )
-    .run(req.user.id, name, pythonVersion, JSON.stringify(packages));
+    const info = db
+      .prepare(
+        "INSERT INTO environments (user_id, name, python_version, packages, status) VALUES (?, ?, ?, ?, 'building')",
+      )
+      .run(req.user.id, name, pythonVersion, JSON.stringify(packages));
 
-  const row = db.prepare('SELECT * FROM environments WHERE id = ?').get(info.lastInsertRowid);
-  buildEnvironment(row.id).catch(() => {}); // 异步构建
-  res.status(201).json({ environment: toEnv(row) });
-});
+    const row = db.prepare('SELECT * FROM environments WHERE id = ?').get(info.lastInsertRowid);
+    buildEnvironment(row.id).catch(() => {}); // 异步构建
+    logger.info(`[env] ${maskEmail(req.user.email)} 创建环境「${name}」（Python ${pythonVersion}，${packages.length} 个库）`);
+    res.status(201).json({ environment: toEnv(row) });
+  },
+);
 
 // POST /api/environments/:id/rebuild -> { environment }
 router.post('/:id/rebuild', (req, res) => {

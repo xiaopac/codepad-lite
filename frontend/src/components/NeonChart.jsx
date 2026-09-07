@@ -1,6 +1,9 @@
 // 霓虹折线图：纯 SVG 实现（零第三方依赖）
 // 特性：多系列发光描边、null 断点（网络中断处不连线）、自动量程、极值标注
-export default function NeonChart({ series, height = 160 }) {
+// React.memo：纯展示组件，props 不变时跳过重渲染（需求 2.6）
+import { memo } from 'react';
+
+function NeonChart({ series, height = 160 }) {
   const W = 640;
   const H = height;
 
@@ -92,3 +95,5 @@ export default function NeonChart({ series, height = 160 }) {
     </div>
   );
 }
+
+export default memo(NeonChart);

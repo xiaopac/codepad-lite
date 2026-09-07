@@ -30,4 +30,8 @@ module.exports = {
   GEO_LOOKUP_TIMEOUT_MS: Number(process.env.GEO_LOOKUP_TIMEOUT_MS || 2500),
   // 系统监控的网络探测目标（host:port，逗号分隔；TCP 连接计时测延迟）
   NET_PROBE_TARGETS: process.env.NET_PROBE_TARGETS || '223.5.5.5:53,1.1.1.1:443',
+  // 跨域白名单（逗号分隔）；留空 = 仅同源（推荐）
+  CORS_ORIGINS: process.env.CORS_ORIGINS || '',
+  // 日志目录（winston 按日轮转，保留 30 天）
+  LOG_DIR: process.env.LOG_DIR || path.join(ROOT, 'logs'),
 };

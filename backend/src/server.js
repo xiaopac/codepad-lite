@@ -7,18 +7,24 @@ require('./db'); // 初始化数据库 + 自动迁移
 const { seedAdmin } = require('./services/adminSeed');
 const app = require('./app');
 const piston = require('./services/piston');
+const { logger } = require('./utils/logger');
 
 fs.mkdirSync(config.STORAGE_DIR, { recursive: true });
+
+// 密钥自检：JWT_SECRET 过短（<32 字符）只警告不阻断，生产务必使用强随机值
+if (config.JWT_SECRET.length < 32) {
+  logger.warn('[security] JWT_SECRET 长度不足 32 字符，生产环境请使用 openssl rand -hex 32 生成强密钥');
+}
 
 // 硬编码管理员 xiaopac：首次启动自动创建，之后每次启动自愈（admin + active）
 seedAdmin();
 
 app.listen(config.PORT, () => {
-  console.log(`CodePad Lite 后端已启动：http://localhost:${config.PORT}`);
-  console.log(`Piston 地址：${config.PISTON_URL}`);
+  logger.info(`CodePad Lite 后端已启动：http://localhost:${config.PORT}`);
+  logger.info(`Piston 地址：${config.PISTON_URL}`);
 });
 
 // 后台探测 Piston 并自动安装 cpp / python 运行时（不阻塞服务启动，失败会自动重试）
 piston.ensureRuntimes().catch((err) => {
-  console.warn('[piston] 运行时初始化任务异常：', err.message);
+  logger.warn(`[piston] 运行时初始化任务异常：${err.message}`);
 });

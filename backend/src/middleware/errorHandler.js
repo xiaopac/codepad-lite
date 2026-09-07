@@ -1,10 +1,12 @@
 const HttpError = require('../utils/HttpError');
+const { logger } = require('../utils/logger');
 
 function notFound(req, res) {
   res.status(404).json({ error: '接口不存在' });
 }
 
-// express-async-errors 会把 async 路由中的异常转发到这里
+// express-async-errors 会把 async 路由中的异常转发到这里。
+// 生产原则：响应只给友好描述，堆栈只进日志（不泄露内部信息）。
 // eslint-disable-next-line no-unused-vars
 function errorHandler(err, req, res, next) {
   if (err instanceof HttpError) {
@@ -19,7 +21,8 @@ function errorHandler(err, req, res, next) {
   if (err && err.type === 'entity.too.large') {
     return res.status(413).json({ error: '请求体过大' });
   }
-  console.error('[error]', err);
+  // 堆栈与详情仅记录在服务端日志（含轮转），响应中绝不返回
+  logger.error(`[${req.method} ${req.originalUrl}] ${err.stack || err}`);
   res.status(500).json({ error: '服务器内部错误，请稍后重试' });
 }
 

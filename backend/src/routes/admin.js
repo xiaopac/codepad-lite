@@ -5,10 +5,13 @@ const fs = require('fs');
 const net = require('net');
 const { execFile } = require('child_process');
 const bcrypt = require('bcryptjs');
+const { body } = require('express-validator');
 const db = require('../db');
 const config = require('../config');
 const HttpError = require('../utils/HttpError');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { validate, PASSWORD_RE, PASSWORD_MSG } = require('../middleware/validation');
+const { logger, maskEmail } = require('../utils/logger');
 const piston = require('../services/piston');
 
 const router = express.Router();
@@ -115,6 +118,7 @@ function guardAdminTarget(target) {
 router.post('/users/:id/approve', (req, res) => {  const target = getUserById(req.params.id);
   guardAdminTarget(target);
   db.prepare("UPDATE users SET status = 'active' WHERE id = ?").run(target.id);
+  logger.info(`[admin] ${maskEmail(req.user.email)} 通过审核 ${maskEmail(target.email)}`);
   res.json({ success: true, user: { id: target.id, email: target.email, status: 'active' } });
 });
 
@@ -123,24 +127,26 @@ router.post('/users/:id/reject', (req, res) => {
   const target = getUserById(req.params.id);
   guardAdminTarget(target);
   db.prepare("UPDATE users SET status = 'rejected' WHERE id = ?").run(target.id);
+  logger.info(`[admin] ${maskEmail(req.user.email)} 拒绝/封禁 ${maskEmail(target.email)}`);
   res.json({ success: true, user: { id: target.id, email: target.email, status: 'rejected' } });
 });
 
 // POST /api/admin/users/:id/password  { newPassword } -> { success }
-// 管理员可重置用户密码（只能修改，永远无法查看任何密码/哈希）
-router.post('/users/:id/password', (req, res) => {
-  const target = getUserById(req.params.id);
-  guardAdminTarget(target);
-  const next = String(req.body?.newPassword ?? '');
-  if (next.length < 6 || next.length > 72) {
-    throw new HttpError(400, '新密码长度需为 6-72 位');
-  }
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(
-    bcrypt.hashSync(next, 10),
-    target.id,
-  );
-  res.json({ success: true, user: { id: target.id, email: target.email } });
-});
+// 管理员可重置用户密码（只能修改，永远无法查看任何密码/哈希）；新密码强制复杂度
+router.post(
+  '/users/:id/password',
+  validate([body('newPassword').isString().matches(PASSWORD_RE).withMessage(PASSWORD_MSG)]),
+  (req, res) => {
+    const target = getUserById(req.params.id);
+    guardAdminTarget(target);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(
+      bcrypt.hashSync(req.body.newPassword, 10),
+      target.id,
+    );
+    logger.info(`[admin] ${maskEmail(req.user.email)} 重置密码 ${maskEmail(target.email)}`);
+    res.json({ success: true, user: { id: target.id, email: target.email } });
+  },
+);
 
 // GET /api/admin/logs?limit=100 -> { logs: [...] }
 router.get('/logs', (req, res) => {

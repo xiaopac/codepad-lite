@@ -1,7 +1,9 @@
 const express = require('express');
+const { body } = require('express-validator');
 const db = require('../db');
 const HttpError = require('../utils/HttpError');
 const { requireAuth } = require('../middleware/auth');
+const { validate, PROJECT_NAME_RE, FILE_NAME_RE } = require('../middleware/validation');
 const fileStore = require('../services/fileStore');
 const {
   languageFromName,
@@ -12,7 +14,6 @@ const {
 const router = express.Router();
 router.use(requireAuth);
 
-const PROJECT_NAME_RE = /^[A-Za-z0-9_\u4e00-\u9fa5 .-]{1,50}$/;
 const MAX_FILE_CONTENT = 200000; // 200KB
 
 function toProjectId(raw) {
@@ -85,18 +86,27 @@ router.put('/:id/environment', (req, res) => {
 });
 
 // POST /api/projects  { name } -> { project }
-router.post('/', (req, res) => {
-  const name = String(req.body?.name ?? '').trim();
-  if (!name || !PROJECT_NAME_RE.test(name)) {
-    throw new HttpError(400, '项目名需为 1-50 位字符，且不能包含 / \\ 等特殊字符');
-  }
-  const info = db.prepare('INSERT INTO projects (user_id, name) VALUES (?, ?)').run(req.user.id, name);
-  const project = db
-    .prepare('SELECT id, name, created_at, environment_id FROM projects WHERE id = ?')
-    .get(info.lastInsertRowid);
-  fileStore.ensureProjectDir(req.user.id, project.id);
-  res.status(201).json({ project });
-});
+router.post(
+  '/',
+  validate([
+    body('name')
+      .trim()
+      .matches(PROJECT_NAME_RE)
+      .withMessage('项目名需为 1-50 位字符，且不能包含 / \\ 等特殊字符'),
+  ]),
+  (req, res) => {
+    const name = String(req.body?.name ?? '').trim();
+    if (!name || !PROJECT_NAME_RE.test(name)) {
+      throw new HttpError(400, '项目名需为 1-50 位字符，且不能包含 / \\ 等特殊字符');
+    }
+    const info = db.prepare('INSERT INTO projects (user_id, name) VALUES (?, ?)').run(req.user.id, name);
+    const project = db
+      .prepare('SELECT id, name, created_at, environment_id FROM projects WHERE id = ?')
+      .get(info.lastInsertRowid);
+    fileStore.ensureProjectDir(req.user.id, project.id);
+    res.status(201).json({ project });
+  },
+);
 
 // DELETE /api/projects/:id -> { success }（级联删除数据库中的文件行 + 磁盘目录）
 router.delete('/:id', (req, res) => {
@@ -124,14 +134,20 @@ router.get('/:id/files', (req, res) => {
 });
 
 // POST /api/projects/:id/files  { name, content } -> { file }
-router.post('/:id/files', (req, res) => {
-  const projectId = toProjectId(req.params.id);
-  const project = getOwnedProject(req.user.id, projectId);
-  const name = normalizeFileName(req.body?.name);
-  const content = String(req.body?.content ?? '');
+router.post(
+  '/:id/files',
+  validate([
+    body('name').trim().matches(FILE_NAME_RE).withMessage('文件名不合法：仅支持 .cpp / .py 结尾（如 main.cpp、main.py）'),
+    body('content').optional().isString().withMessage('content 必须是字符串'),
+  ]),
+  (req, res) => {
+    const projectId = toProjectId(req.params.id);
+    const project = getOwnedProject(req.user.id, projectId);
+    const name = normalizeFileName(req.body?.name);
+    const content = String(req.body?.content ?? '');
 
-  if (!isValidFileName(name)) {
-    throw new HttpError(400, '文件名不合法：仅支持 .cpp / .py 结尾（如 main.cpp、main.py）');
+    if (!isValidFileName(name)) {
+      throw new HttpError(400, '文件名不合法：仅支持 .cpp / .py 结尾（如 main.cpp、main.py）');
   }
   if (content.length > MAX_FILE_CONTENT) {
     throw new HttpError(413, `文件内容过大（最大 ${MAX_FILE_CONTENT / 1000}KB）`);
@@ -152,7 +168,8 @@ router.post('/:id/files', (req, res) => {
   const file = db.prepare('SELECT id, name, language FROM files WHERE id = ?').get(info.lastInsertRowid);
   touchProject(project.id);
   res.status(201).json({ file: { ...file, content } });
-});
+  },
+);
 
 // PUT /api/projects/:id/files/:fileId  { content } -> { file }（自动保存）
 router.put('/:id/files/:fileId', (req, res) => {

@@ -29,6 +29,16 @@ services:
       # 国内服务器可在 .env 中把运行时下载源换成镜像代理（如 ghproxy），
       # 或用 Docker Desktop 的代理设置（对所有容器出网生效，推荐）
       PISTON_REPO_URL: ${PISTON_REPO_URL:-https://github.com/engineer-man/piston/releases/download/pkgs/index}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:2000/api/v2/runtimes',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 20s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2g
 
   # ---------------------------------------------------------------
   # 自定义 Python 环境构建器：把用户选择的第三方库 pip 进共享卷
@@ -48,6 +58,16 @@ services:
       PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     expose:
       - "3100"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://localhost:3100/health',timeout=3).status==200 else 1)"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
 
   # ---------------------------------------------------------------
   # 后端：Express + SQLite + JWT，通过 HTTP 调用 piston /api/v2/execute
@@ -57,8 +77,10 @@ services:
     container_name: codepad-backend
     restart: unless-stopped
     depends_on:
-      - piston
-      - env-builder
+      piston:
+        condition: service_healthy
+      env-builder:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -69,9 +91,21 @@ services:
       ENV_BUILDER_URL: http://env-builder:3100
       DB_PATH: /app/data/codepad.db
       STORAGE_DIR: /app/storage
+      LOG_DIR: /app/logs
     volumes:
       - db_data:/app/data
       - storage_data:/app/storage
+      - logs_data:/app/logs
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   # ---------------------------------------------------------------
   # 前端：nginx 托管静态资源，并把 /api 反代到后端（同源，无 CORS 烦恼）
@@ -81,11 +115,23 @@ services:
     container_name: codepad-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 256m
 
 volumes:
   piston_packages:
   db_data:
   storage_data:
+  logs_data:

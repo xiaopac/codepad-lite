@@ -16,7 +16,8 @@ function requireAuth(req, res, next) {
   }
   let payload;
   try {
-    payload = jwt.verify(token, config.JWT_SECRET);
+    // 显式锁定 HS256，防止算法混淆攻击（需求 1.2）
+    payload = jwt.verify(token, config.JWT_SECRET, { algorithms: ['HS256'] });
   } catch {
     return res.status(401).json({ error: '未登录或登录已过期' });
   }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from './store/authStore';
 import { useProjectStore } from './store/projectStore';
@@ -6,10 +6,13 @@ import { useVisualViewportHeight } from './hooks/useVisualViewport';
 import AuthPage from './components/AuthPage';
 import ProjectListView from './components/ProjectListView';
 import Workspace from './components/Workspace';
-import AdminDashboard from './components/AdminDashboard';
-import EnvironmentsView from './components/EnvironmentsView';
-import ProfilePanel from './components/ProfilePanel';
 import ToastContainer from './components/Toast';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// 代码分割（需求 2.6）：低频页面懒加载，减小首屏体积
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const EnvironmentsView = lazy(() => import('./components/EnvironmentsView'));
+const ProfilePanel = lazy(() => import('./components/ProfilePanel'));
 
 // 路由级页面转场：淡入 + 上移（GPU 友好：opacity/transform）
 const pageTransition = {
@@ -24,6 +27,14 @@ function Page({ children }) {
     <motion.div className="flex min-h-0 flex-1 flex-col" {...pageTransition}>
       {children}
     </motion.div>
+  );
+}
+
+function SuspenseFallback() {
+  return (
+    <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+      加载中…
+    </div>
   );
 }
 
@@ -66,48 +77,58 @@ export default function App() {
       className="flex w-full flex-col overflow-hidden bg-cyber-bg text-slate-100"
       style={{ height: 'var(--app-height, 100dvh)' }}
     >
-      <AnimatePresence mode="wait" initial={false}>
-        {view === 'auth' && (
-          <Page key="auth">
-            <AuthPage />
-          </Page>
-        )}
-        {view === 'projects' && (
-          <Page key="projects">
-            <ProjectListView
-              onOpenAdmin={() => setAdminOpen(true)}
-              onOpenProfile={() => setProfileOpen(true)}
-              onOpenEnvironments={() => setEnvOpen(true)}
-            />
-          </Page>
-        )}
-        {view === 'workspace' && (
-          <Page key="workspace">
-            <Workspace
-              onOpenProfile={() => setProfileOpen(true)}
-              onOpenEnvironments={() => setEnvOpen(true)}
-            />
-          </Page>
-        )}
-        {view === 'environments' && (
-          <Page key="environments">
-            <EnvironmentsView onBack={() => setEnvOpen(false)} />
-          </Page>
-        )}
-        {view === 'admin' && (
-          <Page key="admin">
-            <AdminDashboard onBack={() => setAdminOpen(false)} />
-          </Page>
-        )}
-      </AnimatePresence>
+      <ErrorBoundary>
+        <AnimatePresence mode="wait" initial={false}>
+          {view === 'auth' && (
+            <Page key="auth">
+              <AuthPage />
+            </Page>
+          )}
+          {view === 'projects' && (
+            <Page key="projects">
+              <ProjectListView
+                onOpenAdmin={() => setAdminOpen(true)}
+                onOpenProfile={() => setProfileOpen(true)}
+                onOpenEnvironments={() => setEnvOpen(true)}
+              />
+            </Page>
+          )}
+          {view === 'workspace' && (
+            <Page key="workspace">
+              <Workspace
+                onOpenProfile={() => setProfileOpen(true)}
+                onOpenEnvironments={() => setEnvOpen(true)}
+              />
+            </Page>
+          )}
+          {view === 'environments' && (
+            <Page key="environments">
+              <Suspense fallback={<SuspenseFallback />}>
+                <EnvironmentsView onBack={() => setEnvOpen(false)} />
+              </Suspense>
+            </Page>
+          )}
+          {view === 'admin' && (
+            <Page key="admin">
+              <Suspense fallback={<SuspenseFallback />}>
+                <AdminDashboard onBack={() => setAdminOpen(false)} />
+              </Suspense>
+            </Page>
+          )}
+        </AnimatePresence>
 
-      {/* 个人设置侧滑面板 */}
-      <AnimatePresence>
-        {profileOpen && token && <ProfilePanel onClose={() => setProfileOpen(false)} />}
-      </AnimatePresence>
+        {/* 个人设置侧滑面板（懒加载） */}
+        <AnimatePresence>
+          {profileOpen && token && (
+            <Suspense fallback={null}>
+              <ProfilePanel onClose={() => setProfileOpen(false)} />
+            </Suspense>
+          )}
+        </AnimatePresence>
 
-      {/* 全局 Toast：从右侧滑入，停留 2 秒后淡出滑走 */}
-      <ToastContainer />
+        {/* 全局 Toast：从右侧滑入，停留 2 秒后淡出滑走 */}
+        <ToastContainer />
+      </ErrorBoundary>
     </div>
   );
 }
