@@ -136,4 +136,9 @@ CREATE TABLE IF NOT EXISTS environments (
 );
 `);
 
+// 构建日志列（自检机制：pip 输出分类后入库，前端可查看）
+if (!db.prepare('PRAGMA table_info(environments)').all().some((c) => c.name === 'build_log')) {
+  db.exec('ALTER TABLE environments ADD COLUMN build_log TEXT');
+}
+
 module.exports = db;

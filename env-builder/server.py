@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # CodePad Lite env-builder：把第三方 pip 包安装进 Piston 共享卷的 site-packages。
-# 说明：Piston 每次执行任务都会复制整个运行时目录，因此写入共享卷的包对所有
-# 后续执行持久生效。构建器与 Piston 同为 glibc（Debian），使用 manylinux 轮子。
+# 健壮性自检：
+#  - pip 已在镜像构建时升级到最新（见 Dockerfile），并禁用版本检查通知；
+#  - 构建输出按 ERROR / WARNING / notice 分类：只有真正的 ERROR 才算失败，
+#    警告与提示不会导致误判；
+#  - 完整构建日志随响应返回（并写入数据库），供前端展示。
 import json
 import os
 import re
@@ -15,6 +18,46 @@ INDEX_URL = os.environ.get('PIP_INDEX_URL', 'https://pypi.org/simple')
 VER_RE = re.compile(r'^3\.(9|10|11)$')
 PKG_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$')
 BUILD_TIMEOUT = 280
+LOG_MAX_LINES = 200
+
+# 内存态日志（最近的构建），供 GET /log/<id> 查询
+RECENT_LOGS = {}
+_LOG_SEQ = [0]
+
+
+def classify(lines):
+    """把 pip 输出分成 错误 / 警告 / 通知 三类。"""
+    errors, warnings, notices = [], [], []
+    for raw in lines:
+        s = raw.strip()
+        if not s:
+            continue
+        if s.startswith('ERROR') or 'ERROR:' in s:
+            errors.append(s)
+        elif s.startswith('WARNING') or '[notice]' in s:
+            if '[notice]' in s:
+                notices.append(s)
+            else:
+                warnings.append(s)
+    return errors, warnings, notices
+
+
+def run_pip(version, target, packages, log_id):
+    cmd = [
+        sys.executable, '-m', 'pip', 'install',
+        '--no-cache-dir', '--no-input', '--disable-pip-version-check',
+        '--index-url', INDEX_URL,
+        '--target', target,
+        '--python-version', version,
+        '--only-binary=:all:',
+        *packages,
+    ]
+    lines = [f'$ {" ".join(cmd)}']
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=BUILD_TIMEOUT)
+    combined = (proc.stdout or '') + (proc.stderr or '')
+    lines.extend(combined.splitlines())
+    RECENT_LOGS[log_id] = lines[-LOG_MAX_LINES:]
+    return proc.returncode, lines
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -31,7 +74,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == '/health':
-            return self._reply(200, {'ok': True, 'python': sys.version.split()[0]})
+            import pip
+            return self._reply(200, {
+                'ok': True,
+                'python': sys.version.split()[0],
+                'pip': pip.__version__,
+            })
+        if self.path.startswith('/log/'):
+            log_id = self.path[len('/log/'):]
+            return self._reply(200, {'log': RECENT_LOGS.get(log_id, [])})
         self._reply(404, {'error': 'not found'})
 
     def do_POST(self):
@@ -55,7 +106,6 @@ class Handler(BaseHTTPRequestHandler):
             if not PKG_RE.match(p):
                 return self._reply(400, {'error': 'invalid package name: ' + p})
 
-        # 路径安全：必须落在 /pkgs/python/<version>/lib/python<X.Y>/site-packages
         python_root = os.path.realpath(os.path.join(PKGS_ROOT, 'python'))
         real = os.path.realpath(target)
         if not real.startswith(python_root + os.sep):
@@ -64,25 +114,46 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(400, {'error': 'target must be the runtime site-packages'})
 
         os.makedirs(real, exist_ok=True)
-        cmd = [
-            sys.executable, '-m', 'pip', 'install', '--no-cache-dir',
-            '--index-url', INDEX_URL,
-            '--target', real,
-            '--python-version', version,
-            '--only-binary=:all:',
-            *packages,
-        ]
-        print(f'[build] python {version}: pip install {" ".join(packages)}', flush=True)
+        _LOG_SEQ[0] += 1
+        log_id = str(_LOG_SEQ[0])
+        print(f'[build #{log_id}] python {version}: pip install {" ".join(packages)}', flush=True)
+
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=BUILD_TIMEOUT)
+            returncode, lines = run_pip(version, target, packages, log_id)
         except subprocess.TimeoutExpired:
-            return self._reply(500, {'error': f'build timeout ({BUILD_TIMEOUT}s)'})
-        if proc.returncode != 0:
-            tail = (proc.stderr or proc.stdout or '').strip().splitlines()[-3:]
-            print(f'[build] FAILED: {" | ".join(tail)}', flush=True)
-            return self._reply(500, {'error': 'pip 安装失败：' + ' | '.join(tail)})
-        print(f'[build] OK: {", ".join(packages)}', flush=True)
-        self._reply(200, {'success': True, 'installed': packages})
+            RECENT_LOGS[log_id] = [f'build timeout ({BUILD_TIMEOUT}s)']
+            return self._reply(500, {
+                'error': f'build timeout ({BUILD_TIMEOUT}s)',
+                'log_id': log_id,
+                'log': RECENT_LOGS[log_id],
+            })
+
+        errors, warnings, notices = classify(lines)
+        log_text = '\n'.join(lines[-LOG_MAX_LINES:])
+
+        if returncode != 0:
+            # 真正的失败：以 ERROR 行为准；若没有 ERROR 行，退回输出末尾
+            message = ' | '.join(errors[-3:]) if errors else (
+                ' | '.join(l.strip() for l in lines[-3:] if l.strip()) or 'pip 安装失败'
+            )
+            print(f'[build #{log_id}] FAILED: {message}', flush=True)
+            return self._reply(500, {
+                'error': message,
+                'log_id': log_id,
+                'log': log_text,
+                'warnings': warnings[-5:],
+                'notices': notices[-5:],
+            })
+
+        print(f'[build #{log_id}] OK: {", ".join(packages)}', flush=True)
+        self._reply(200, {
+            'success': True,
+            'installed': packages,
+            'log_id': log_id,
+            'log': log_text,
+            'warnings': warnings[-5:],
+            'notices': notices[-5:],
+        })
 
 
 if __name__ == '__main__':

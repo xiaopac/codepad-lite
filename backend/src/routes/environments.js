@@ -20,6 +20,7 @@ function toEnv(row) {
     packages: packagesOf(row),
     status: row.status,
     error: row.error,
+    build_log: row.build_log ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

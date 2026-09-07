@@ -38,7 +38,7 @@ async function buildEnvironment(envId) {
     // 1. 确保运行时已安装（需要 Piston 可达 + GitHub 网络）
     await piston.ensurePythonRuntime(fullVersion);
 
-    // 2. 安装第三方库
+    // 2. 安装第三方库（构建日志随响应返回并入库）
     const packages = packagesOf(env);
     if (packages.length > 0) {
       const target = `/pkgs/python/${fullVersion}/lib/python${env.python_version}/site-packages`;
@@ -63,16 +63,28 @@ async function buildEnvironment(envId) {
       try {
         data = await res.json();
       } catch { /* 忽略 */ }
+
+      const logTail = typeof data?.log === 'string' ? data.log.slice(-8000) : '';
       if (!res.ok) {
+        // 只有真正的 pip ERROR 才会走到这里（构建器已分类过滤 notice/WARNING）
         const message = (data && data.error) || `构建服务返回 HTTP ${res.status}`;
+        db.prepare('UPDATE environments SET build_log = ? WHERE id = ?').run(logTail, envId);
         throw new Error(message);
       }
+      db.prepare('UPDATE environments SET build_log = ? WHERE id = ?').run(logTail, envId);
     }
 
     setStatus(envId, 'ready');
     console.log(`[env] 环境 #${envId}「${env.name}」构建完成（Python ${env.python_version}）`);
   } catch (err) {
     const message = err.message || String(err);
+    // 失败时把错误行追加进构建日志，便于用户排查
+    const existing = db.prepare('SELECT build_log FROM environments WHERE id = ?').get(envId);
+    const append = `\n[backend] 构建失败：${message}`;
+    db.prepare('UPDATE environments SET build_log = ? WHERE id = ?').run(
+      `${existing?.build_log || ''}${append}`.slice(-8000),
+      envId,
+    );
     setStatus(envId, 'failed', message);
     console.warn(`[env] 环境 #${envId} 构建失败：${message}`);
   }

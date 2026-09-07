@@ -35,14 +35,13 @@ services:
   # 的运行时 site-packages（与 Piston 同为 glibc，使用 manylinux 轮子）
   # ---------------------------------------------------------------
   env-builder:
-    image: python:3.11-slim
+    # 自建镜像：构建时先升级 pip（消除版本警告，层可缓存复用）
+    build: ./env-builder
+    image: codepad-lite-env-builder
     container_name: codepad-env-builder
     restart: unless-stopped
-    working_dir: /app
-    command: ["python", "-u", "server.py"]
     volumes:
       - piston_packages:/pkgs
-      - ./env-builder:/app:ro
     environment:
       PORT: 3100
       # 国内服务器可换成清华镜像：https://pypi.tuna.tsinghua.edu.cn/simple

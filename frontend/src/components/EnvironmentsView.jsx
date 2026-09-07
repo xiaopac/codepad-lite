@@ -24,6 +24,7 @@ export default function EnvironmentsView({ onBack }) {
   const [packagesText, setPackagesText] = useState('');
   const [busy, setBusy] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [logForId, setLogForId] = useState(null);
   const delTimer = useRef(null);
 
   const load = useCallback(async () => {
@@ -221,6 +222,48 @@ export default function EnvironmentsView({ onBack }) {
                       <p className="mt-2 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs leading-relaxed text-rose-300">
                         ✗ {env.error}
                       </p>
+                    )}
+
+                    {/* 构建日志（自检机制：ERROR/WARNING/notice 分类着色） */}
+                    {env.build_log && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => setLogForId(logForId === env.id ? null : env.id)}
+                          className="flex h-9 items-center gap-1.5 rounded-lg px-2 text-[11px] text-slate-400 transition hover:bg-white/5 hover:text-cyan-200"
+                        >
+                          📜 构建日志 {logForId === env.id ? '▲' : '▼'}
+                        </button>
+                        <AnimatePresence initial={false}>
+                          {logForId === env.id && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+                              className="overflow-hidden"
+                            >
+                              <pre className="max-h-56 overflow-auto scroll-touch rounded-lg border border-white/10 bg-[#0a0a0f] p-3 font-mono text-[10px] leading-relaxed">
+                                {env.build_log.split('\n').map((line, i) => {
+                                  const cls = line.includes('ERROR')
+                                    ? 'text-rose-400'
+                                    : line.includes('WARNING')
+                                      ? 'text-amber-300'
+                                      : line.startsWith('$ ')
+                                        ? 'text-cyan-300'
+                                        : line.includes('[notice]')
+                                          ? 'text-slate-600'
+                                          : 'text-slate-400';
+                                  return (
+                                    <div key={i} className={`whitespace-pre-wrap break-words ${cls}`}>
+                                      {line || ' '}
+                                    </div>
+                                  );
+                                })}
+                              </pre>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     )}
 
                     <div className="mt-3 flex gap-2 border-t border-white/10 pt-3">
