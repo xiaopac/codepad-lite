@@ -157,20 +157,43 @@ async function runEnsure() {
   }
 }
 
+// 确保指定版本运行时已安装（自定义环境构建用），缺失则通过包管理 API 安装
+async function ensurePythonRuntime(fullVersion) {
+  const runtimes = await getRuntimes();
+  if (runtimes.some((r) => r && r.language === 'python' && r.version === fullVersion)) return;
+  await installPackage('python', fullVersion);
+  invalidateRuntimes();
+}
+
 // 执行代码并映射为前端契约：
 // { stdout, stderr, compile_error, execution_time, exit_code }
-async function execute(language, code, stdin) {
+// preferredVersion：自定义 Python 环境指定的运行时版本（如 3.10.0）
+async function execute(language, code, stdin, preferredVersion) {
   const startedAt = Date.now();
 
   let runtimes = await getRuntimes();
-  let runtime = runtimes.find((r) => runtimeMatches(r, language));
+  let runtime = runtimes.find((r) =>
+    preferredVersion
+      ? runtimeMatches(r, language) && r.version === preferredVersion
+      : runtimeMatches(r, language),
+  );
   if (!runtime) {
     // 缓存的运行时列表可能是在安装完成前获取的旧值：刷新一次再看
     invalidateRuntimes();
     runtimes = await getRuntimes();
-    runtime = runtimes.find((r) => runtimeMatches(r, language));
+    runtime = runtimes.find((r) =>
+      preferredVersion
+        ? runtimeMatches(r, language) && r.version === preferredVersion
+        : runtimeMatches(r, language),
+    );
   }
   if (!runtime) {
+    if (preferredVersion) {
+      throw new HttpError(
+        503,
+        `环境对应的 Python ${preferredVersion} 运行时未安装，请到「环境管理」重建该环境`,
+      );
+    }
     // 运行时缺失：确保后台自动安装任务在跑（无时限、会重试），并给出友好提示
     ensureRuntimes().catch(() => {});
     throw new HttpError(
@@ -236,4 +259,4 @@ async function ping(timeoutMs = 3000) {
   return fetchJson(`${config.PISTON_URL}/api/v2/runtimes`, {}, timeoutMs);
 }
 
-module.exports = { execute, ensureRuntimes, getRuntimes, ping };
+module.exports = { execute, ensureRuntimes, ensurePythonRuntime, getRuntimes, ping };

@@ -67,6 +67,16 @@ function migrateUsersTable() {
     }
 
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+
+  // 编辑器背景设置（JSON：{ scale, contrast, opacity, posX, posY }）
+  if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'editor_background')) {
+    db.exec('ALTER TABLE users ADD COLUMN editor_background TEXT');
+  }
+
+  // 项目 ↔ 环境绑定
+  if (!db.prepare('PRAGMA table_info(projects)').all().some((c) => c.name === 'environment_id')) {
+    db.exec('ALTER TABLE projects ADD COLUMN environment_id INTEGER');
+  }
   })();
 }
 migrateUsersTable();
@@ -109,6 +119,21 @@ CREATE TABLE IF NOT EXISTS execution_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_execution_logs_created ON execution_logs(created_at);
+
+-- 用户自定义 Python 环境
+CREATE TABLE IF NOT EXISTS environments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  python_version TEXT NOT NULL,
+  packages TEXT NOT NULL,
+  status TEXT DEFAULT 'building',
+  error TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(user_id, name)
+);
 `);
 
 module.exports = db;

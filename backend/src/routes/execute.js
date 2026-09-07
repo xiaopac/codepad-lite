@@ -2,6 +2,7 @@ const express = require('express');
 const HttpError = require('../utils/HttpError');
 const { requireAuth } = require('../middleware/auth');
 const piston = require('../services/piston');
+const { VERSION_MAP } = require('../services/envBuilder');
 const db = require('../db');
 
 const router = express.Router();
@@ -39,10 +40,10 @@ function logExecution(userId, language, codeLength, status, result) {
   }
 }
 
-// POST /api/execute  { language: "cpp"|"python", code, stdin }
+// POST /api/execute  { language: "cpp"|"python", code, stdin, environment_id? }
 // -> { stdout, stderr, compile_error, execution_time, exit_code }（需鉴权）
 router.post('/', async (req, res) => {
-  const { language, code, stdin } = req.body ?? {};
+  const { language, code, stdin, environment_id } = req.body ?? {};
 
   if (language !== 'cpp' && language !== 'python') {
     throw new HttpError(400, '仅支持 cpp / python 两种语言');
@@ -55,10 +56,27 @@ router.post('/', async (req, res) => {
   }
   const stdinText = typeof stdin === 'string' ? stdin.slice(0, MAX_STDIN_LENGTH) : '';
 
+  // 自定义 Python 环境：解析环境并确定运行时版本
+  let preferredVersion = undefined;
+  if (language === 'python' && environment_id !== undefined && environment_id !== null) {
+    const envId = Number(environment_id);
+    if (!Number.isInteger(envId) || envId <= 0) throw new HttpError(400, 'environment_id 不合法');
+    const env = db
+      .prepare('SELECT * FROM environments WHERE id = ? AND user_id = ?')
+      .get(envId, req.user.id);
+    if (!env) throw new HttpError(404, '环境不存在');
+    if (env.status === 'building') throw new HttpError(400, '环境正在构建中，请稍后再试');
+    if (env.status !== 'ready') {
+      throw new HttpError(400, `环境构建失败：${env.error || '未知错误'}，请到环境管理重建`);
+    }
+    preferredVersion = VERSION_MAP[env.python_version];
+    if (!preferredVersion) throw new HttpError(400, '环境 Python 版本不受支持，请重建环境');
+  }
+
   let result = null;
   let status = 'engine_error';
   try {
-    result = await piston.execute(language, code, stdinText);
+    result = await piston.execute(language, code, stdinText, preferredVersion);
     status = classifyResult(result);
     res.json(result);
   } catch (err) {

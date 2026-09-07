@@ -7,6 +7,7 @@ import AuthPage from './components/AuthPage';
 import ProjectListView from './components/ProjectListView';
 import Workspace from './components/Workspace';
 import AdminDashboard from './components/AdminDashboard';
+import EnvironmentsView from './components/EnvironmentsView';
 import ProfilePanel from './components/ProfilePanel';
 import ToastContainer from './components/Toast';
 
@@ -36,6 +37,7 @@ export default function App() {
   const currentProject = useProjectStore((s) => s.currentProject);
   const [adminOpen, setAdminOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [envOpen, setEnvOpen] = useState(false);
 
   // 有 token 时拉取当前用户信息（无效则自动登出）
   useEffect(() => {
@@ -43,6 +45,7 @@ export default function App() {
     else {
       setAdminOpen(false);
       setProfileOpen(false);
+      setEnvOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
@@ -54,7 +57,9 @@ export default function App() {
       ? 'admin'
       : currentProject
         ? 'workspace'
-        : 'projects';
+        : envOpen
+          ? 'environments'
+          : 'projects';
 
   return (
     <div
@@ -72,12 +77,21 @@ export default function App() {
             <ProjectListView
               onOpenAdmin={() => setAdminOpen(true)}
               onOpenProfile={() => setProfileOpen(true)}
+              onOpenEnvironments={() => setEnvOpen(true)}
             />
           </Page>
         )}
         {view === 'workspace' && (
           <Page key="workspace">
-            <Workspace onOpenProfile={() => setProfileOpen(true)} />
+            <Workspace
+              onOpenProfile={() => setProfileOpen(true)}
+              onOpenEnvironments={() => setEnvOpen(true)}
+            />
+          </Page>
+        )}
+        {view === 'environments' && (
+          <Page key="environments">
+            <EnvironmentsView onBack={() => setEnvOpen(false)} />
           </Page>
         )}
         {view === 'admin' && (

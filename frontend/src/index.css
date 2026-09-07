@@ -214,6 +214,36 @@ button:not(:disabled):active {
   color: #ffd479; /* 黄：元信息 */
 }
 
+/* ── 霓虹滑杆（编辑器背景调节，触控友好） ────────────────── */
+.cyber-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+.cyber-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0d0d16;
+  border: 2px solid var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+  cursor: pointer;
+}
+.cyber-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0d0d16;
+  border: 2px solid var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+  cursor: pointer;
+}
+
 /* ── Monaco 补全弹窗毛玻璃（模块一） ──────────────────── */
 .monaco-editor .suggest-widget {
   background: rgba(13, 13, 24, 0.78) !important;

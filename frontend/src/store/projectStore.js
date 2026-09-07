@@ -36,11 +36,35 @@ function enqueueSave(snapshot, keepalive) {
 export const useProjectStore = create((set, get) => ({
   projects: [],
   loadingProjects: false,
+  environments: [], // 自定义 Python 环境列表
   currentProject: null,
   files: [],
   loadingFiles: false,
   currentFileId: null,
   autosaveError: null,
+
+  fetchEnvironments: async () => {
+    const data = await api('/api/environments');
+    set({ environments: data.environments });
+    return data.environments;
+  },
+
+  bindEnvironment: async (projectId, environmentId) => {
+    const data = await api(`/api/projects/${projectId}/environment`, {
+      method: 'PUT',
+      body: { environment_id: environmentId },
+    });
+    set((s) => ({
+      currentProject:
+        s.currentProject?.id === projectId
+          ? { ...s.currentProject, environment_id: data.project.environment_id }
+          : s.currentProject,
+      projects: s.projects.map((p) =>
+        p.id === projectId ? { ...p, environment_id: data.project.environment_id } : p,
+      ),
+    }));
+    return data.project;
+  },
 
   fetchProjects: async () => {
     set({ loadingProjects: true });
@@ -188,6 +212,7 @@ export const useProjectStore = create((set, get) => ({
   resetAll: () =>
     set({
       projects: [],
+      environments: [],
       currentProject: null,
       files: [],
       currentFileId: null,

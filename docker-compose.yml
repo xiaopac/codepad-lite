@@ -31,6 +31,26 @@ services:
       PISTON_REPO_URL: ${PISTON_REPO_URL:-https://github.com/engineer-man/piston/releases/download/pkgs/index}
 
   # ---------------------------------------------------------------
+  # 自定义 Python 环境构建器：把用户选择的第三方库 pip 进共享卷
+  # 的运行时 site-packages（与 Piston 同为 glibc，使用 manylinux 轮子）
+  # ---------------------------------------------------------------
+  env-builder:
+    image: python:3.11-slim
+    container_name: codepad-env-builder
+    restart: unless-stopped
+    working_dir: /app
+    command: ["python", "-u", "server.py"]
+    volumes:
+      - piston_packages:/pkgs
+      - ./env-builder:/app:ro
+    environment:
+      PORT: 3100
+      # 国内服务器可换成清华镜像：https://pypi.tuna.tsinghua.edu.cn/simple
+      PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    expose:
+      - "3100"
+
+  # ---------------------------------------------------------------
   # 后端：Express + SQLite + JWT，通过 HTTP 调用 piston /api/v2/execute
   # ---------------------------------------------------------------
   backend:
@@ -39,6 +59,7 @@ services:
     restart: unless-stopped
     depends_on:
       - piston
+      - env-builder
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -46,6 +67,7 @@ services:
       # 硬编码管理员 xiaopac 的初始密码（仅首次创建时生效，生产务必修改）
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
       PISTON_URL: http://piston:2000
+      ENV_BUILDER_URL: http://env-builder:3100
       DB_PATH: /app/data/codepad.db
       STORAGE_DIR: /app/storage
     volumes:

@@ -1,10 +1,105 @@
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useProjectStore, selectCurrentFile } from '../store/projectStore';
 import { useEditorStore } from '../store/editorStore';
 import { useUiStore } from '../store/uiStore';
+import { toast } from '../store/toastStore';
 import { languageFromName } from '../utils/language';
 
-export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenProfile }) {
+// ── 项目 Python 环境选择器（下拉） ──
+function EnvSelector({ onOpenEnvironments }) {
+  const environments = useProjectStore((s) => s.environments);
+  const currentProject = useProjectStore((s) => s.currentProject);
+  const bindEnvironment = useProjectStore((s) => s.bindEnvironment);
+  const fetchEnvironments = useProjectStore((s) => s.fetchEnvironments);
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    fetchEnvironments().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [open]);
+
+  const bound = environments.find((e) => e.id === currentProject?.environment_id);
+  const label = bound ? `🐍 ${bound.name} · ${bound.python_version}` : '🐍 Python 环境';
+
+  return (
+    <div className="relative hidden shrink-0 sm:block" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-11 items-center gap-1.5 rounded-lg bg-white/5 px-3 text-xs text-slate-300 transition hover:bg-white/10"
+        title="项目使用的 Python 环境"
+      >
+        <span className="max-w-[140px] truncate">{label}</span>
+        <span className="text-slate-500">▾</span>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="glass-strong absolute right-0 top-12 z-40 w-64 rounded-xl p-2 shadow-glass"
+          >
+            <p className="px-2 py-1 text-[10px] tracking-wider text-slate-500">
+              项目使用的 Python 环境
+            </p>
+            <div className="max-h-56 overflow-y-auto scroll-touch">
+              {environments.map((e) => (
+                <button
+                  key={e.id}
+                  disabled={e.status !== 'ready'}
+                  onClick={() => {
+                    bindEnvironment(currentProject.id, e.id)
+                      .then(() => {
+                        setOpen(false);
+                        toast.success(`已切换到「${e.name}」`);
+                      })
+                      .catch((err) => toast.error(err.message || '切换失败'));
+                  }}
+                  className={`flex h-11 w-full items-center justify-between rounded-lg px-2 text-left text-sm transition disabled:opacity-40 ${
+                    bound?.id === e.id
+                      ? 'bg-cyan-400/15 text-cyan-200'
+                      : 'text-slate-300 hover:bg-white/5'
+                  }`}
+                >
+                  <span className="truncate">{e.name}</span>
+                  <span className="shrink-0 text-[10px] text-slate-500">
+                    {e.python_version}
+                    {e.status === 'building' ? ' · 构建中' : e.status === 'failed' ? ' · 失败' : ''}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                setOpen(false);
+                onOpenEnvironments?.();
+              }}
+              className="mt-1 flex h-11 w-full items-center justify-center gap-1 rounded-lg border border-dashed border-white/15 text-xs text-slate-400 transition hover:text-cyan-200"
+            >
+              🧪 管理环境
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenProfile, onOpenEnvironments }) {
   const user = useAuthStore((s) => s.user);
   const file = useProjectStore(selectCurrentFile);
   const fontSize = useEditorStore((s) => s.fontSize);
@@ -66,6 +161,9 @@ export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenPr
           </>
         )}
       </button>
+
+      {/* Python 环境选择器 */}
+      <EnvSelector onOpenEnvironments={onOpenEnvironments} />
 
       {/* 字号调节（默认 16px，移动端友好） */}
       <div className="glass flex shrink-0 items-center rounded-xl">

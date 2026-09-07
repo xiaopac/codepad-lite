@@ -35,12 +35,16 @@ export const useUiStore = create((set, get) => ({
 
     const code = useEditorStore.getState().code;
     const stdin = get().stdin;
+    // Python 运行时绑定项目所选的自定义环境（若无绑定则走默认运行时）
+    const project = useProjectStore.getState().currentProject;
+    const environmentId =
+      language === 'python' ? project?.environment_id ?? undefined : undefined;
 
     set({ running: true, result: null, runError: null, outputOpen: true, outputTab: 'output' });
     try {
       const data = await api('/api/execute', {
         method: 'POST',
-        body: { language, code, stdin },
+        body: { language, code, stdin, environment_id: environmentId },
       });
       set({ result: data, resultAt: Date.now() });
     } catch (err) {

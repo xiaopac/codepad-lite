@@ -54,9 +54,34 @@ function touchProject(projectId) {
 // GET /api/projects -> { projects: [{id, name, created_at}] }
 router.get('/', (req, res) => {
   const projects = db
-    .prepare('SELECT id, name, created_at FROM projects WHERE user_id = ? ORDER BY created_at DESC, id DESC')
+    .prepare('SELECT id, name, created_at, environment_id FROM projects WHERE user_id = ? ORDER BY created_at DESC, id DESC')
     .all(req.user.id);
   res.json({ projects });
+});
+
+// PUT /api/projects/:id/environment  { environment_id } -> { project }（绑定/解绑 Python 环境）
+router.put('/:id/environment', (req, res) => {
+  const projectId = toProjectId(req.params.id);
+  const project = getOwnedProject(req.user.id, projectId);
+  const raw = req.body?.environment_id;
+
+  let environmentId = null;
+  if (raw !== null && raw !== undefined && raw !== '') {
+    environmentId = Number(raw);
+    if (!Number.isInteger(environmentId) || environmentId <= 0) {
+      throw new HttpError(400, 'environment_id 不合法');
+    }
+    const env = db
+      .prepare('SELECT id FROM environments WHERE id = ? AND user_id = ?')
+      .get(environmentId, req.user.id);
+    if (!env) throw new HttpError(404, '环境不存在');
+  }
+
+  db.prepare('UPDATE projects SET environment_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(
+    environmentId,
+    project.id,
+  );
+  res.json({ project: { id: project.id, environment_id: environmentId } });
 });
 
 // POST /api/projects  { name } -> { project }
@@ -67,7 +92,7 @@ router.post('/', (req, res) => {
   }
   const info = db.prepare('INSERT INTO projects (user_id, name) VALUES (?, ?)').run(req.user.id, name);
   const project = db
-    .prepare('SELECT id, name, created_at FROM projects WHERE id = ?')
+    .prepare('SELECT id, name, created_at, environment_id FROM projects WHERE id = ?')
     .get(info.lastInsertRowid);
   fileStore.ensureProjectDir(req.user.id, project.id);
   res.status(201).json({ project });

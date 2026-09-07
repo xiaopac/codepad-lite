@@ -18,4 +18,14 @@ self.MonacoEnvironment = {
 
 loader.config({ monaco });
 
+// 透明背景主题：让自定义编辑器背景图片（底层图层）透出来
+monaco.editor.defineTheme('codepad-dark', {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#00000000',
+  },
+});
+
 export default monaco;

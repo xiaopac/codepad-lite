@@ -5,7 +5,7 @@ import { useProjectStore } from '../store/projectStore';
 import { useEditorStore } from '../store/editorStore';
 import { toast } from '../store/toastStore';
 
-export default function ProjectListView({ onOpenAdmin, onOpenProfile }) {
+export default function ProjectListView({ onOpenAdmin, onOpenProfile, onOpenEnvironments }) {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const projects = useProjectStore((s) => s.projects);
@@ -92,6 +92,12 @@ export default function ProjectListView({ onOpenAdmin, onOpenProfile }) {
               🛡 管理后台
             </button>
           )}
+          <button
+            onClick={onOpenEnvironments}
+            className="flex h-11 items-center gap-1.5 rounded-lg bg-white/5 px-3 text-sm text-slate-300 transition hover:bg-white/10 hover:text-cyan-200"
+          >
+            🧪 Python 环境
+          </button>
           <div className="hidden items-center gap-1.5 sm:flex">
             <span className="text-base">{user?.avatar || '👤'}</span>
             <span className="max-w-[140px] truncate text-sm text-slate-300">
