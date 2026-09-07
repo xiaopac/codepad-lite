@@ -5,7 +5,7 @@ import { useProjectStore } from '../store/projectStore';
 import { useEditorStore } from '../store/editorStore';
 import { toast } from '../store/toastStore';
 
-export default function ProjectListView({ onOpenAdmin }) {
+export default function ProjectListView({ onOpenAdmin, onOpenProfile }) {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const projects = useProjectStore((s) => s.projects);
@@ -92,9 +92,20 @@ export default function ProjectListView({ onOpenAdmin }) {
               🛡 管理后台
             </button>
           )}
-          <span className="hidden max-w-[160px] truncate text-sm text-slate-300 sm:inline">
-            {user?.email}
-          </span>
+          <div className="hidden items-center gap-1.5 sm:flex">
+            <span className="text-base">{user?.avatar || '👤'}</span>
+            <span className="max-w-[140px] truncate text-sm text-slate-300">
+              {user?.nickname || user?.email}
+            </span>
+          </div>
+          <button
+            onClick={onOpenProfile}
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-lg text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
+            aria-label="个人设置"
+            title="个人设置"
+          >
+            ⚙
+          </button>
           <button
             onClick={handleLogout}
             className="flex h-11 items-center rounded-lg px-3 text-sm text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"

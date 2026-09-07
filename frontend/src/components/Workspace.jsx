@@ -20,7 +20,7 @@ function useIsDesktop() {
   return isDesktop;
 }
 
-export default function Workspace() {
+export default function Workspace({ onOpenProfile }) {
   const project = useProjectStore((s) => s.currentProject);
   const closeProject = useProjectStore((s) => s.closeProject);
   const loadingFiles = useProjectStore((s) => s.loadingFiles);
@@ -60,6 +60,7 @@ export default function Workspace() {
         projectName={project?.name}
         onBack={handleBack}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        onOpenProfile={onOpenProfile}
       />
 
       {autosaveError && (

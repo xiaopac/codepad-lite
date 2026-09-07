@@ -10,6 +10,7 @@ export const useAuthStore = create(
       user: null,
 
       setAuth: (token, user) => set({ token, user }),
+      setUser: (user) => set({ user }),
       clearAuth: () => set({ token: null, user: null }),
 
       // 应用启动时用已存 token 拉取当前用户信息（校验 token 有效性）

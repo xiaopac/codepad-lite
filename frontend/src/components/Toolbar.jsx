@@ -4,7 +4,7 @@ import { useEditorStore } from '../store/editorStore';
 import { useUiStore } from '../store/uiStore';
 import { languageFromName } from '../utils/language';
 
-export default function Toolbar({ projectName, onBack, onToggleSidebar }) {
+export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenProfile }) {
   const user = useAuthStore((s) => s.user);
   const file = useProjectStore(selectCurrentFile);
   const fontSize = useEditorStore((s) => s.fontSize);
@@ -88,18 +88,30 @@ export default function Toolbar({ projectName, onBack, onToggleSidebar }) {
         </button>
       </div>
 
-      {/* 渐变圆环头像 */}
+      {/* 渐变圆环头像 + 昵称 */}
       <div className="hidden shrink-0 items-center gap-2 lg:flex">
         <div
           className="rounded-full p-[2px]"
           style={{ background: 'conic-gradient(from 180deg, #00f0ff, #0088ff, #a855f7, #00f0ff)' }}
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d0d16] text-sm font-bold text-cyan-200">
-            {(user?.email || '?').slice(0, 1).toUpperCase()}
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d0d16] text-base">
+            {user?.avatar || (user?.email || '?').slice(0, 1).toUpperCase()}
           </span>
         </div>
-        <span className="max-w-[96px] truncate text-sm text-slate-300">{user?.email}</span>
+        <span className="max-w-[96px] truncate text-sm text-slate-300">
+          {user?.nickname || user?.email}
+        </span>
       </div>
+
+      {/* 个人设置齿轮 */}
+      <button
+        onClick={onOpenProfile}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-lg text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
+        aria-label="个人设置"
+        title="个人设置"
+      >
+        ⚙
+      </button>
 
       <button
         onClick={handleLogout}

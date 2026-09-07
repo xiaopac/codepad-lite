@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { api } from '../api/client';
 import { toast } from '../store/toastStore';
 
@@ -47,6 +48,32 @@ export default function AdminUsers() {
       toast.error(err.message || '操作失败');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  // 管理员重置用户密码（只能设置新密码，无法查看任何密码）
+  const [pwForId, setPwForId] = useState(null);
+  const [pwValue, setPwValue] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+
+  const resetPassword = async (u) => {
+    if (pwValue.length < 6) {
+      toast.error('新密码至少 6 位');
+      return;
+    }
+    setPwBusy(true);
+    try {
+      await api(`/api/admin/users/${u.id}/password`, {
+        method: 'POST',
+        body: { newPassword: pwValue },
+      });
+      toast.success(`已重置「${u.email}」的密码`);
+      setPwForId(null);
+      setPwValue('');
+    } catch (err) {
+      toast.error(err.message || '重置失败');
+    } finally {
+      setPwBusy(false);
     }
   };
 
@@ -128,21 +155,64 @@ export default function AdminUsers() {
                 )}
 
                 {!isAdmin && (
-                  <div className="mt-3 flex gap-2 border-t border-white/10 pt-3">
-                    <button
-                      onClick={() => setStatus(u, 'approve')}
-                      disabled={busyId === u.id || u.status === 'active'}
-                      className="h-11 flex-1 rounded-lg bg-emerald-500/90 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
-                    >
-                      {u.status === 'pending' ? '✓ 通过审核' : '✓ 重新激活'}
-                    </button>
-                    <button
-                      onClick={() => setStatus(u, 'reject')}
-                      disabled={busyId === u.id || u.status === 'rejected'}
-                      className="h-11 flex-1 rounded-lg border border-rose-400/50 bg-rose-500/10 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/25 disabled:opacity-40"
-                    >
-                      {u.status === 'active' ? '✕ 封禁账号' : '✕ 拒绝'}
-                    </button>
+                  <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setStatus(u, 'approve')}
+                        disabled={busyId === u.id || u.status === 'active'}
+                        className="h-11 flex-1 rounded-lg bg-emerald-500/90 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+                      >
+                        {u.status === 'pending' ? '✓ 通过审核' : '✓ 重新激活'}
+                      </button>
+                      <button
+                        onClick={() => setStatus(u, 'reject')}
+                        disabled={busyId === u.id || u.status === 'rejected'}
+                        className="h-11 flex-1 rounded-lg border border-rose-400/50 bg-rose-500/10 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/25 disabled:opacity-40"
+                      >
+                        {u.status === 'active' ? '✕ 封禁账号' : '✕ 拒绝'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setPwForId(pwForId === u.id ? null : u.id);
+                          setPwValue('');
+                        }}
+                        className="h-11 shrink-0 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 text-sm font-semibold text-amber-300 transition hover:bg-amber-400/20"
+                        title="重置密码（管理员只能设置新密码，无法查看原密码）"
+                      >
+                        🔑 重置密码
+                      </button>
+                    </div>
+
+                    {/* 内联密码重置表单 */}
+                    <AnimatePresence initial={false}>
+                      {pwForId === u.id && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="flex gap-2 pt-1">
+                            <input
+                              type="text"
+                              className="glass h-11 min-w-0 flex-1 rounded-lg px-3 text-sm text-slate-100 outline-none focus:border-amber-400/60"
+                              placeholder={`为 ${u.email} 设置新密码（至少 6 位）`}
+                              value={pwValue}
+                              onChange={(e) => setPwValue(e.target.value)}
+                              autoComplete="off"
+                            />
+                            <button
+                              onClick={() => resetPassword(u)}
+                              disabled={pwBusy}
+                              className="h-11 shrink-0 rounded-lg bg-amber-500/90 px-4 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-50"
+                            >
+                              确认重置
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
               </div>

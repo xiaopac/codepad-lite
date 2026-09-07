@@ -4,6 +4,7 @@ const os = require('os');
 const fs = require('fs');
 const net = require('net');
 const { execFile } = require('child_process');
+const bcrypt = require('bcryptjs');
 const db = require('../db');
 const config = require('../config');
 const HttpError = require('../utils/HttpError');
@@ -111,8 +112,7 @@ function guardAdminTarget(target) {
 }
 
 // POST /api/admin/users/:id/approve -> { success, user }（待审核 → 已激活 / 拒绝后重新放行）
-router.post('/users/:id/approve', (req, res) => {
-  const target = getUserById(req.params.id);
+router.post('/users/:id/approve', (req, res) => {  const target = getUserById(req.params.id);
   guardAdminTarget(target);
   db.prepare("UPDATE users SET status = 'active' WHERE id = ?").run(target.id);
   res.json({ success: true, user: { id: target.id, email: target.email, status: 'active' } });
@@ -124,6 +124,22 @@ router.post('/users/:id/reject', (req, res) => {
   guardAdminTarget(target);
   db.prepare("UPDATE users SET status = 'rejected' WHERE id = ?").run(target.id);
   res.json({ success: true, user: { id: target.id, email: target.email, status: 'rejected' } });
+});
+
+// POST /api/admin/users/:id/password  { newPassword } -> { success }
+// 管理员可重置用户密码（只能修改，永远无法查看任何密码/哈希）
+router.post('/users/:id/password', (req, res) => {
+  const target = getUserById(req.params.id);
+  guardAdminTarget(target);
+  const next = String(req.body?.newPassword ?? '');
+  if (next.length < 6 || next.length > 72) {
+    throw new HttpError(400, '新密码长度需为 6-72 位');
+  }
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(
+    bcrypt.hashSync(next, 10),
+    target.id,
+  );
+  res.json({ success: true, user: { id: target.id, email: target.email } });
 });
 
 // GET /api/admin/logs?limit=100 -> { logs: [...] }

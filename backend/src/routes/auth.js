@@ -15,6 +15,8 @@ function toPublicUser(u) {
   return {
     id: u.id,
     email: u.email,
+    nickname: u.nickname ?? null,
+    avatar: u.avatar ?? null,
     role: isAdminUser(u) ? 'admin' : (u.role || 'user'),
     status: u.status,
     created_at: u.created_at,

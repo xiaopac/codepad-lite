@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
+  nickname TEXT,
+  avatar TEXT,
   ip_address TEXT,
   location TEXT,
   user_agent TEXT,
@@ -48,6 +50,8 @@ function migrateUsersTable() {
       // 注意：ALTER TABLE ADD COLUMN 不允许 CURRENT_TIMESTAMP 这类非常量默认值，
       // 迁移路径不加默认值（旧用户 registered_at 为 NULL，前端回退显示 created_at）
       ['registered_at', 'DATETIME'],
+      ['nickname', 'TEXT'],
+      ['avatar', 'TEXT'],
     ];
     for (const [name, def] of additions) {
       if (!cols.includes(name)) {

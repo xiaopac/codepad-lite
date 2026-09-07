@@ -21,7 +21,7 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: '未登录或登录已过期' });
   }
   const user = db
-    .prepare('SELECT id, email, role, status, created_at FROM users WHERE id = ?')
+    .prepare('SELECT id, email, nickname, avatar, role, status, created_at FROM users WHERE id = ?')
     .get(payload.id);
   if (!user) {
     return res.status(401).json({ error: '用户不存在' });

@@ -8,17 +8,21 @@ const config = require('../config');
 function seedAdmin() {
   const passwordHash = bcrypt.hashSync(config.ADMIN_PASSWORD, 10);
 
-  // UPSERT：不存在则创建；已存在则强制同步密码/角色/状态
+  // UPSERT：不存在则创建；已存在则强制同步密码/角色/状态（不覆盖用户自定义的昵称/头像）
   const info = db
     .prepare(
-      `INSERT INTO users (email, password_hash, role, status, location)
-       VALUES (?, ?, 'admin', 'active', ?)
+      `INSERT INTO users (email, password_hash, role, status, location, nickname, avatar)
+       VALUES (?, ?, 'admin', 'active', ?, 'xiaopac', '🛡')
        ON CONFLICT(email) DO UPDATE SET
          role = 'admin',
          status = 'active',
          password_hash = excluded.password_hash`,
     )
     .run(config.ADMIN_USERNAME, passwordHash, '系统管理员');
+
+  // 补默认昵称/头像（仅当为空）
+  db.prepare("UPDATE users SET nickname = 'xiaopac' WHERE email = ? AND nickname IS NULL").run(config.ADMIN_USERNAME);
+  db.prepare("UPDATE users SET avatar = '🛡' WHERE email = ? AND avatar IS NULL").run(config.ADMIN_USERNAME);
 
   if (info.changes > 0) {
     console.log(`[admin] 硬编码管理员 ${config.ADMIN_USERNAME} 已就绪（密码以 ADMIN_PASSWORD 为准）`);

@@ -7,6 +7,7 @@ import AuthPage from './components/AuthPage';
 import ProjectListView from './components/ProjectListView';
 import Workspace from './components/Workspace';
 import AdminDashboard from './components/AdminDashboard';
+import ProfilePanel from './components/ProfilePanel';
 import ToastContainer from './components/Toast';
 
 // 路由级页面转场：淡入 + 上移（GPU 友好：opacity/transform）
@@ -34,11 +35,15 @@ export default function App() {
   const boot = useAuthStore((s) => s.boot);
   const currentProject = useProjectStore((s) => s.currentProject);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // 有 token 时拉取当前用户信息（无效则自动登出）
   useEffect(() => {
     if (token) boot();
-    else setAdminOpen(false);
+    else {
+      setAdminOpen(false);
+      setProfileOpen(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -64,12 +69,15 @@ export default function App() {
         )}
         {view === 'projects' && (
           <Page key="projects">
-            <ProjectListView onOpenAdmin={() => setAdminOpen(true)} />
+            <ProjectListView
+              onOpenAdmin={() => setAdminOpen(true)}
+              onOpenProfile={() => setProfileOpen(true)}
+            />
           </Page>
         )}
         {view === 'workspace' && (
           <Page key="workspace">
-            <Workspace />
+            <Workspace onOpenProfile={() => setProfileOpen(true)} />
           </Page>
         )}
         {view === 'admin' && (
@@ -77,6 +85,11 @@ export default function App() {
             <AdminDashboard onBack={() => setAdminOpen(false)} />
           </Page>
         )}
+      </AnimatePresence>
+
+      {/* 个人设置侧滑面板 */}
+      <AnimatePresence>
+        {profileOpen && token && <ProfilePanel onClose={() => setProfileOpen(false)} />}
       </AnimatePresence>
 
       {/* 全局 Toast：从右侧滑入，停留 2 秒后淡出滑走 */}
