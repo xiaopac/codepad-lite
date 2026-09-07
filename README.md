@@ -245,17 +245,46 @@ sudo ufw allow 80,443/tcp
 sudo ufw enable
 ```
 
-### 2. 上传项目（二选一）
+### 2. 上传项目：GitHub 私库（推荐）
+
+**本机（一次性，项目已初始化 git 仓库）**：在 GitHub 网页新建一个 **Private** 空仓库
+（不要勾选 README/.gitignore），然后：
 
 ```bash
-# 方式 A：git 仓库（推荐，便于后续升级）
-git clone <你的仓库地址> codepad-lite && cd codepad-lite
-
-# 方式 B：本机打包上传（node_modules/dist/data 均已 gitignore，无需排除）
-#   本机 PowerShell: tar -czf codepad-lite.tar.gz codepad-lite
-#   scp codepad-lite.tar.gz user@服务器IP:~/
-#   服务器: tar -xzf codepad-lite.tar.gz && cd codepad-lite
+git remote add origin https://github.com/你的用户名/codepad-lite.git
+git push -u origin main
 ```
+
+**服务器**（推荐 SSH 部署密钥，免密且安全）：
+
+```bash
+# 生成专用密钥
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/codepad_deploy
+cat ~/.ssh/codepad_deploy.pub
+# ↑ 把输出贴到 GitHub 仓库 Settings → Deploy keys → Add deploy key（只读即可）
+
+# 让 GitHub 走这把密钥
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  IdentityFile ~/.ssh/codepad_deploy
+  IdentitiesOnly yes
+EOF
+
+# 克隆
+cd /root
+git clone git@github.com:你的用户名/codepad-lite.git
+cd codepad-lite
+```
+
+不想配密钥的话，用 HTTPS + Personal Access Token 克隆：
+
+```bash
+git clone https://<你的Token>@github.com/你的用户名/codepad-lite.git
+```
+
+> 国内服务器访问 GitHub 慢/不通：把仓库同步到 Gitee 私库，服务器改从 Gitee 克隆，流程完全一样。
+
+（压缩包方式备选：`scripts\package.ps1` 打包 + scp 上传 + `sudo bash scripts/update.sh` 更新）
 
 ### 3. 配置环境变量并启动
 
@@ -337,23 +366,21 @@ docker run --rm -v codepad-lite_storage_data:/data -v $PWD:/backup alpine tar cz
   此期间执行接口会返回"正在后台自动安装"提示；
 - **系统要求**：内存 ≥ 2GB（推荐 4GB）、磁盘空闲 ≥ 5GB（piston 运行时约 1-2GB）。
 
-### 8. 一键脚本与后续更新
+### 8. 一键脚本与后续更新（Git 流程，推荐）
 
-项目内置三个脚本：
+项目内置脚本：
 
-- **本机打包**（Windows PowerShell，在项目目录执行）：
-  `powershell -ExecutionPolicy Bypass -File scripts\package.ps1`
-  → 生成 `codepad-lite-release.tar.gz`（自动排除 node_modules / dist / 数据库 / .env）；
-- **服务器初始化**（解压后执行一次）：
-  `sudo bash scripts/server-setup.sh`
+- **服务器初始化**（克隆后执行一次）：`sudo bash scripts/server-setup.sh`
   → 安装 Docker、配置防火墙、随机生成 `JWT_SECRET` 与管理员密码、构建启动；
-- **服务器更新**（每次发布新版本时执行）：
-  `sudo bash scripts/update.sh`
-  → 解压覆盖代码、重新构建、清理旧镜像（`.env` 与数据卷不受影响）。
+- **服务器更新**（Git 方式）：`sudo bash scripts/git-update.sh`
+  → `git pull` + 重新构建 + 清理旧镜像（`.env` 与数据卷不受影响）；
+- **服务器更新**（压缩包方式备选）：`sudo bash scripts/update.sh`；
+- **本机打包**（压缩包方式用）：`powershell -ExecutionPolicy Bypass -File scripts\package.ps1`。
 
-**发布节奏**：本机改代码 → 本机 `docker compose up -d --build` 验证 →
-`package.ps1` 打包 → `scp` 上传 → 服务器 `sudo bash scripts/update.sh`。
+**发布节奏（Git）**：本机改代码 → 本机 `docker compose up -d --build` 验证 →
+`git add -A && git commit -m "..." && git push` → 服务器 `sudo bash scripts/git-update.sh`。
 数据库结构变更会在后端启动时自动迁移，无需手工干预。
+仓库已通过 `.gitattributes` 强制 LF 行尾，服务器拉取的脚本开箱即用。
 
 ---
 
