@@ -1,0 +1,2 @@
+# 强制统一 LF 行尾：保证 .sh / Dockerfile / 源码在任何系统（含服务器 Linux）都可用
+* text=auto eol=lf
