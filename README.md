@@ -384,6 +384,42 @@ docker run --rm -v codepad-lite_storage_data:/data -v $PWD:/backup alpine tar cz
 
 ---
 
+## Windows Server 部署
+
+Windows 服务器（Windows Server 2022 / Win10/11 专业版，需 WSL2 或 Hyper-V）
+全程远程桌面操作，与本地 Windows 流程一致：
+
+```powershell
+# 1. 安装 Docker Desktop（WSL2 后端）与 Git（管理员 PowerShell 执行）
+winget install -e --id Docker.DockerDesktop
+winget install -e --id Git.Git
+
+# 2. 启动 Docker Desktop（等待右下角鲸鱼图标就绪），然后克隆公开仓库
+cd C:\
+git clone https://github.com/xiaopac/codepad-lite.git
+cd codepad-lite
+
+# 3. 一键初始化（生成随机密钥 + 构建启动）
+powershell -ExecutionPolicy Bypass -File scripts\server-setup.ps1
+
+# 4. 放行防火墙端口（管理员 PowerShell；云服务器还需在安全组放行 8080）
+netsh advfirewall firewall add rule name="CodePad-8080" dir=in action=allow protocol=TCP localport=8080
+```
+
+访问 `http://服务器IP:8080`，用脚本打印的 `xiaopac` 密码登录。
+
+**后续更新**：本机推送后，服务器上执行
+
+```powershell
+cd C:\codepad-lite
+powershell -ExecutionPolicy Bypass -File scripts\git-update.ps1
+```
+
+> Docker Desktop 许可注意：免费版适用于个人/小企业（<250 员工且年营收 <1000 万美元），
+> 规模更大需购买订阅。
+
+---
+
 ## 故障排查
 
 **Piston 运行时一直装不上**
