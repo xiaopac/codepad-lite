@@ -398,7 +398,6 @@ winget install -e --id Git.Git
 cd C:\
 git clone https://github.com/xiaopac/codepad-lite.git
 cd codepad-lite
-
 # 3. 一键初始化（生成随机密钥 + 构建启动）
 powershell -ExecutionPolicy Bypass -File scripts\server-setup.ps1
 
@@ -407,6 +406,9 @@ netsh advfirewall firewall add rule name="CodePad-8080" dir=in action=allow prot
 ```
 
 访问 `http://服务器IP:8080`，用脚本打印的 `xiaopac` 密码登录。
+
+> 国内服务器连不上 GitHub（报 `curl 28 ... Could not connect`）时改用 Gitee 克隆，
+> 见文末「故障排查 → 服务器连不上 GitHub」。
 
 **后续更新**：本机推送后，服务器上执行
 
@@ -421,6 +423,35 @@ powershell -ExecutionPolicy Bypass -File scripts\git-update.ps1
 ---
 
 ## 故障排查
+
+**服务器连不上 GitHub（`curl 28 / Could not connect to server`）**
+
+国内服务器直连 GitHub 常被墙。推荐改用 Gitee（码云）同步仓库：
+
+1. 在 gitee.com 新建同名空仓库（不要初始化 README）；
+2. 本机（能连 GitHub 的机器）把代码推到 Gitee：
+
+```powershell
+cd I:\PYcoding\codepad-lite
+git remote add gitee https://gitee.com/你的用户名/codepad-lite.git
+git push gitee main
+```
+
+3. 服务器改从 Gitee 克隆：
+
+```powershell
+git clone https://gitee.com/你的用户名/codepad-lite.git
+```
+
+4. 之后本机每次更新推送两条：`git push origin main; git push gitee main`；
+   服务器 `git-update.ps1` 直接从 Gitee 拉取（origin 即 Gitee，无需改动）。
+
+备选方案：
+
+- GitHub 镜像代理（第三方，时效性不稳定）：`git clone https://ghproxy.com/https://github.com/xiaopac/codepad-lite.git`
+- hosts 指定可用 IP（先 `nslookup github.com` 看是否 DNS 污染，找到可用 IP 写入
+  `C:\Windows\System32\drivers\etc\hosts`，IP 会轮换，需不定期更新）；
+- 服务器上有代理时给 git 配置：`git config --global http.proxy http://127.0.0.1:端口`。
 
 **Piston 运行时一直装不上**
 
