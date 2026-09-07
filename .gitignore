@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+
+# runtime data (backend)
+backend/data/
+backend/storage/
+
+# env & logs
+.env
+*.log
+
+# release packages
+*.tar.gz
+
+# misc
+.DS_Store
+Thumbs.db

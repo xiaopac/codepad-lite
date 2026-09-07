@@ -1,0 +1,246 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════ 赛博科技感设计系统 ═══════════════ */
+
+:root {
+  --neon-cyan: #00f0ff;
+  --neon-blue: #0088ff;
+  --neon-purple: #a855f7;
+  --bg-deep: #0a0a0f;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  /* 深空底色 + 微妙径向渐变（青/紫星云） */
+  background-color: var(--bg-deep);
+  background-image:
+    radial-gradient(1200px 800px at 85% -10%, rgba(0, 136, 255, 0.13), transparent 60%),
+    radial-gradient(1000px 700px at -10% 110%, rgba(168, 85, 247, 0.11), transparent 55%),
+    radial-gradient(800px 500px at 50% 45%, rgba(0, 240, 255, 0.045), transparent 70%);
+  background-attachment: fixed;
+  color: #e6faff;
+  font-family:
+    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* iPad 输入框聚焦时防止 iOS 自动放大页面（16px 阈值） */
+input,
+textarea,
+select,
+button {
+  font-size: 16px;
+}
+
+/* 可滚动区域的触摸滚动优化 */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ── 玻璃态（Glassmorphism） ─────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.glass-strong {
+  background: rgba(13, 13, 22, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* ── 霓虹文字 ────────────────────────────────────────── */
+.neon-text {
+  color: #eafcff;
+  text-shadow:
+    0 0 8px rgba(0, 240, 255, 0.75),
+    0 0 24px rgba(0, 240, 255, 0.4);
+}
+.neon-text-purple {
+  color: #f5eaff;
+  text-shadow:
+    0 0 8px rgba(168, 85, 247, 0.8),
+    0 0 24px rgba(168, 85, 247, 0.45);
+}
+
+/* ── 按钮按压微反馈（100ms 下沉，模块四） ─────────────── */
+button:not(:disabled) {
+  transition: transform 100ms ease;
+}
+button:not(:disabled):active {
+  transform: scale(0.95);
+}
+/* 排除 Monaco 内部按钮，避免干扰编辑器交互 */
+.monaco-editor button {
+  transition: none !important;
+}
+.monaco-editor button:active {
+  transform: none !important;
+}
+
+/* ── 下划线输入框（登录/注册，聚焦霓虹青） ────────────── */
+.input-line {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0;
+  padding: 12px 2px;
+  color: #eafcff;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.input-line:focus {
+  border-bottom-color: var(--neon-cyan);
+  box-shadow: 0 10px 18px -12px rgba(0, 240, 255, 0.55);
+}
+.input-line::placeholder {
+  color: rgba(230, 250, 255, 0.35);
+}
+
+/* ── 运行按钮“呼吸”霓虹阴影 ──────────────────────────── */
+.breathe-run {
+  animation: breatheRun 2.6s ease-in-out infinite;
+}
+@keyframes breatheRun {
+  0%,
+  100% {
+    box-shadow:
+      0 0 18px rgba(0, 240, 255, 0.35),
+      0 0 44px rgba(168, 85, 247, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 30px rgba(0, 240, 255, 0.65),
+      0 0 70px rgba(168, 85, 247, 0.45);
+  }
+}
+
+/* ── 波浪加载指示器 ──────────────────────────────────── */
+.wave-loader {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 22px;
+}
+.wave-loader i {
+  width: 4px;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--neon-cyan), var(--neon-blue));
+  transform-origin: bottom;
+  animation: wave 1s ease-in-out infinite;
+}
+.wave-loader i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.wave-loader i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.wave-loader i:nth-child(4) {
+  animation-delay: 0.45s;
+}
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+/* ── 保存成功绿色小圆点闪烁 ──────────────────────────── */
+@keyframes savedFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+.saved-flash {
+  animation: savedFlash 1.1s ease-out forwards;
+}
+
+/* ── 编译成功面板绿光边框闪烁 ─────────────────────────── */
+@keyframes successBorder {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.success-flash {
+  animation: successBorder 1.6s ease-out forwards;
+}
+
+/* ── 终端配色（真实终端观感） ─────────────────────────── */
+.term-out {
+  color: #8dffc1; /* 绿：成功输出 */
+}
+.term-err {
+  color: #ff6b7a; /* 红：错误 */
+}
+.term-meta {
+  color: #ffd479; /* 黄：元信息 */
+}
+
+/* ── Monaco 补全弹窗毛玻璃（模块一） ──────────────────── */
+.monaco-editor .suggest-widget {
+  background: rgba(13, 13, 24, 0.78) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 240, 255, 0.28) !important;
+  border-radius: 12px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.55),
+    0 0 16px rgba(0, 240, 255, 0.12);
+  overflow: hidden;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row {
+  border-radius: 8px;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused {
+  background: rgba(0, 240, 255, 0.12) !important;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .highlight {
+  color: var(--neon-cyan) !important;
+}
+
+/* ── Monaco 悬浮提示（签名/文档）玻璃化 ────────────────── */
+.monaco-editor .monaco-hover {
+  background: rgba(13, 13, 24, 0.85) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 240, 255, 0.25) !important;
+  border-radius: 10px;
+}

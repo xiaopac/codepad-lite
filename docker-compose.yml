@@ -1,0 +1,67 @@
+name: codepad-lite
+
+services:
+  # ---------------------------------------------------------------
+  # 代码执行引擎：自托管 Piston（官方镜像，无需定制）
+  # 后端启动后会自动通过 Piston 的 HTTP API 安装 cpp / python 运行时
+  # ---------------------------------------------------------------
+  piston:
+    image: ghcr.io/engineer-man/piston:latest
+    container_name: codepad-piston
+    restart: unless-stopped
+    # Piston 官方要求：isolate 沙箱需要特权模式（自托管场景，见官方 docker-compose）
+    privileged: true
+    # 沙箱执行引擎仅绑定宿主机回环地址：
+    # 后端通过 Docker 内网(http://piston:2000)调用它，公网无需暴露（安全考虑）
+    ports:
+      - "127.0.0.1:2000:2000"
+    tmpfs:
+      - /tmp:exec
+    volumes:
+      - piston_packages:/piston/packages
+    environment:
+      # 与需求一致：运行/编译超时上限 10 秒（默认仅 3 秒）
+      PISTON_COMPILE_TIMEOUT: 10000
+      PISTON_RUN_TIMEOUT: 10000
+      # stdout 上限（默认仅 1024 字符，学生程序输出容易超，放宽到 100KB）
+      PISTON_OUTPUT_MAX_SIZE: 100000
+      PISTON_MAX_PROCESS_COUNT: 128
+
+  # ---------------------------------------------------------------
+  # 后端：Express + SQLite + JWT，通过 HTTP 调用 piston /api/v2/execute
+  # ---------------------------------------------------------------
+  backend:
+    build: ./backend
+    container_name: codepad-backend
+    restart: unless-stopped
+    depends_on:
+      - piston
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-codepad-lite-dev-secret-change-me}
+      # 硬编码管理员 xiaopac 的初始密码（仅首次创建时生效，生产务必修改）
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      PISTON_URL: http://piston:2000
+      DB_PATH: /app/data/codepad.db
+      STORAGE_DIR: /app/storage
+    volumes:
+      - db_data:/app/data
+      - storage_data:/app/storage
+
+  # ---------------------------------------------------------------
+  # 前端：nginx 托管静态资源，并把 /api 反代到后端（同源，无 CORS 烦恼）
+  # ---------------------------------------------------------------
+  frontend:
+    build: ./frontend
+    container_name: codepad-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  piston_packages:
+  db_data:
+  storage_data:
