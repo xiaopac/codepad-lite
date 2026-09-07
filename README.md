@@ -453,6 +453,18 @@ git clone https://gitee.com/你的用户名/codepad-lite.git
   `C:\Windows\System32\drivers\etc\hosts`，IP 会轮换，需不定期更新）；
 - 服务器上有代理时给 git 配置：`git config --global http.proxy http://127.0.0.1:端口`。
 
+**国内服务器拉镜像 / 下载运行时失败**
+
+三个下载环节在国内都可能受阻：ghcr.io 的 piston 镜像、Docker Hub 的 node/nginx
+镜像、Piston 的 cpp/python 运行时（GitHub Releases）。
+
+- **有代理（最省事）**：Docker Desktop → Settings → Resources → Proxies → Manual，
+  填入你的代理地址——镜像拉取、容器内下载全部走代理；
+- **无代理**：Docker Desktop → Settings → Docker Engine 配置 `registry-mirrors`
+  （阿里云/daocloud 加速器）解决 Docker Hub；piston 运行时在 `.env` 中加：
+  `PISTON_REPO_URL=https://ghproxy.com/https://github.com/engineer-man/piston/releases/download/pkgs/index`；
+  或把本机 `codepad-lite_piston_packages` 卷打包拷到服务器恢复（见数据迁移一节）。
+
 **Piston 运行时一直装不上**
 
 后端会自动重试安装（不设时限），先观察日志：

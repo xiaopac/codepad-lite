@@ -26,6 +26,9 @@ services:
       # stdout 上限（默认仅 1024 字符，学生程序输出容易超，放宽到 100KB）
       PISTON_OUTPUT_MAX_SIZE: 100000
       PISTON_MAX_PROCESS_COUNT: 128
+      # 国内服务器可在 .env 中把运行时下载源换成镜像代理（如 ghproxy），
+      # 或用 Docker Desktop 的代理设置（对所有容器出网生效，推荐）
+      PISTON_REPO_URL: ${PISTON_REPO_URL:-https://github.com/engineer-man/piston/releases/download/pkgs/index}
 
   # ---------------------------------------------------------------
   # 后端：Express + SQLite + JWT，通过 HTTP 调用 piston /api/v2/execute
