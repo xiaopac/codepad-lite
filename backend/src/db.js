@@ -68,15 +68,10 @@ function migrateUsersTable() {
 
     db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)');
 
-  // 编辑器背景设置（JSON：{ scale, contrast, opacity, posX, posY }）
-  if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'editor_background')) {
-    db.exec('ALTER TABLE users ADD COLUMN editor_background TEXT');
-  }
-
-  // 项目 ↔ 环境绑定
-  if (!db.prepare('PRAGMA table_info(projects)').all().some((c) => c.name === 'environment_id')) {
-    db.exec('ALTER TABLE projects ADD COLUMN environment_id INTEGER');
-  }
+    // 编辑器背景设置（JSON：{ scale, contrast, opacity, posX, posY }）
+    if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'editor_background')) {
+      db.exec('ALTER TABLE users ADD COLUMN editor_background TEXT');
+    }
   })();
 }
 migrateUsersTable();
@@ -135,6 +130,11 @@ CREATE TABLE IF NOT EXISTS environments (
   UNIQUE(user_id, name)
 );
 `);
+
+// 项目 ↔ 环境绑定（必须在 projects 表创建之后执行）
+if (!db.prepare('PRAGMA table_info(projects)').all().some((c) => c.name === 'environment_id')) {
+  db.exec('ALTER TABLE projects ADD COLUMN environment_id INTEGER');
+}
 
 // 构建日志列（自检机制：pip 输出分类后入库，前端可查看）
 if (!db.prepare('PRAGMA table_info(environments)').all().some((c) => c.name === 'build_log')) {
