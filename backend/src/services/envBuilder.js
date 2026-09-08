@@ -53,6 +53,8 @@ async function buildEnvironment(envId) {
             target,
             python_version: env.python_version,
             packages,
+            // 高级模式：白名单校验后的自定义 pip 参数（可为空字符串）
+            build_command: env.build_command_custom || '',
           }),
           signal: controller.signal,
         });

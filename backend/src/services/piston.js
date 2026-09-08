@@ -6,11 +6,11 @@ const HttpError = require('../utils/HttpError');
 
 // 项目支持的语言 -> Piston 包索引中的语言名。
 // 注意（已对本项目部署的真实 Piston 实测验证）：
-//  - C++ 在包索引 /api/v2/packages 中的名字是 "gcc"（版本 10.2.0）；
-//  - /api/v2/runtimes 中它的语言名是 "c++"，别名为 ["cpp", "g++"]；
-//  - execute 接口接受 "cpp"，会自动解析为 c++。
-const REQUIRED_LANGUAGES = ['cpp', 'python'];
-const PACKAGE_LANGUAGE = { cpp: 'gcc', python: 'python' };
+//  - C / C++ 在包索引 /api/v2/packages 中共享 "gcc" 包（版本 10.2.0）；
+//  - /api/v2/runtimes 中 C 的语言名是 "c"（别名 ["gcc"]），C++ 是 "c++"（别名 ["cpp","g++"]）；
+//  - execute 接口接受 "c" 与 "cpp"，会自动解析到对应运行时。
+const REQUIRED_LANGUAGES = ['cpp', 'python', 'c'];
+const PACKAGE_LANGUAGE = { cpp: 'gcc', python: 'python', c: 'gcc' };
 
 // 运行时条目是否匹配某个项目语言（语言名 + 别名双重匹配）
 function runtimeMatches(runtime, lang) {
@@ -89,7 +89,7 @@ async function installPackage(language, version) {
   );
 }
 
-// 后台常驻任务：等 Piston 就绪后自动安装缺失的 cpp / python 运行时。
+// 后台常驻任务：等 Piston 就绪后自动安装缺失的 cpp / python / c 运行时。
 // 不设总时限：Piston 镜像首次拉取可能耗时数分钟，只要服务最终就绪就会自动补齐；
 // 中途失败无限重试（日志按 30 秒节流，避免刷屏）。
 // 这样 docker compose up 之后无需任何手工步骤，代码即可运行。
@@ -116,7 +116,7 @@ async function runEnsure() {
         (lang) => !localRuntimes.some((r) => runtimeMatches(r, lang)),
       );
       if (missingNow.length === 0) {
-        console.log('[piston] cpp / python 运行时已就绪');
+        console.log('[piston] cpp / python / c 运行时已就绪');
         return;
       }
 
@@ -206,7 +206,9 @@ async function execute(language, code, stdin, preferredVersion) {
   const payload = {
     language,
     version,
-    files: [{ name: language === 'cpp' ? 'main.cpp' : 'main.py', content: code }],
+    files: [
+      { name: language === 'c' ? 'main.c' : language === 'cpp' ? 'main.cpp' : 'main.py', content: code },
+    ],
     stdin,
     compile_timeout: config.COMPILE_TIMEOUT_MS, // 需求锁定：超时 10 秒
     run_timeout: config.RUN_TIMEOUT_MS,

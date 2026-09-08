@@ -153,6 +153,11 @@ if (!db.prepare('PRAGMA table_info(environments)').all().some((c) => c.name === 
   db.exec('ALTER TABLE environments ADD COLUMN build_log TEXT');
 }
 
+// 高级模式：用户自定义 pip 构建参数（白名单校验后的规范串，可为空）
+if (!db.prepare('PRAGMA table_info(environments)').all().some((c) => c.name === 'build_command_custom')) {
+  db.exec('ALTER TABLE environments ADD COLUMN build_command_custom TEXT');
+}
+
 // 查询加速索引（需求 2.1）：外键与高频过滤列
 db.exec(`
 CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);

@@ -17,12 +17,12 @@ const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const EnvironmentsView = lazy(() => import('./components/EnvironmentsView'));
 const ProfilePanel = lazy(() => import('./components/ProfilePanel'));
 
-// 路由级页面转场：淡入 + 上移（GPU 友好：opacity/transform）
+// 路由级页面转场：滑动淡入（仅 opacity/transform，iPad 上 GPU 合成流畅）
 const pageTransition = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -14 },
-  transition: { duration: 0.26, ease: 'easeOut' },
+  initial: { opacity: 0, x: 20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -20 },
+  transition: { duration: 0.24, ease: 'easeOut' },
 };
 
 function Page({ children }) {
@@ -117,6 +117,55 @@ function ScrollToTop() {
   return null;
 }
 
+// ── 路由出口：AnimatePresence 包裹，页面切换时旧页淡出左滑、新页右滑淡入 ──
+function AnimatedRoutes() {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <Routes location={location} key={location.pathname}>
+        <Route
+          path="/"
+          element={
+            <Page>
+              <AuthPage />
+            </Page>
+          }
+        />
+        <Route
+          path="/project"
+          element={
+            <RequireAuth>
+              <Page>
+                <ProjectArea />
+              </Page>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <Page>
+                  <AdminPage />
+                </Page>
+              </RequireAdmin>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="*"
+          element={
+            <Page>
+              <NotFound />
+            </Page>
+          }
+        />
+      </Routes>
+    </AnimatePresence>
+  );
+}
+
 export default function App() {
   useVisualViewportHeight();
 
@@ -139,44 +188,7 @@ export default function App() {
         style={{ height: 'var(--app-height, 100dvh)' }}
       >
         <ErrorBoundary>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <Page>
-                  <AuthPage />
-                </Page>
-              }
-            />
-            <Route
-              path="/project"
-              element={
-                <RequireAuth>
-                  <ProjectArea />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <RequireAuth>
-                  <RequireAdmin>
-                    <Page>
-                      <AdminPage />
-                    </Page>
-                  </RequireAdmin>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="*"
-              element={
-                <Page>
-                  <NotFound />
-                </Page>
-              }
-            />
-          </Routes>
+          <AnimatedRoutes />
 
           {/* 个人设置侧滑面板（全局） */}
           <AnimatePresence>

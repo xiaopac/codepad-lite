@@ -31,14 +31,17 @@ export function monacoLanguageFromName(name) {
   return c && c.kind === 'text' ? c.language : 'plaintext';
 }
 
-// 可运行语言（仅 cpp / python）
+// 可运行语言（c / cpp / python）
+const RUNNABLE_LANGUAGES = new Set(['c', 'cpp', 'python']);
+
+// 运行语言（C 与 C++ 走 Piston gcc 工具链）
 export function runLanguageFromName(name) {
   const c = classifyFileName(name);
   if (!c || c.kind !== 'text') return null;
-  return c.language === 'cpp' || c.language === 'python' ? c.language : null;
+  return RUNNABLE_LANGUAGES.has(c.language) ? c.language : null;
 }
 
-// 兼容旧调用：仅 cpp/python
+// 兼容旧调用：c / cpp / python
 export function languageFromName(name) {
   return runLanguageFromName(name);
 }

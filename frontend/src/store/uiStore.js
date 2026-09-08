@@ -28,7 +28,7 @@ export const useUiStore = create((set, get) => ({
   setOutputHeight: (h) => set({ outputHeight: h }),
   toggleOutput: () => set((s) => ({ outputOpen: !s.outputOpen })),
 
-  // 运行当前文件（仅 cpp / python 可运行）
+  // 运行当前文件（c / cpp / python 可运行）
   runCode: async () => {
     if (get().running) return;
     const file = selectCurrentFile(useProjectStore.getState());

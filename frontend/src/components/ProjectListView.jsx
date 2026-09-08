@@ -136,7 +136,7 @@ export default function ProjectListView({ onOpenEnvironments }) {
         <div className="mx-auto max-w-5xl p-4 sm:p-6">
           <h2 className="neon-text text-xl font-semibold tracking-wider">我的项目</h2>
           <p className="mt-1 text-sm text-slate-400">
-            每个项目是一个文件夹，里面可以放多个 .cpp / .py 文件
+            每个项目是一个文件夹，里面可以放多个 .c / .cpp / .py 文件
           </p>
 
           <form onSubmit={submitCreate} className="mt-5 flex gap-2">

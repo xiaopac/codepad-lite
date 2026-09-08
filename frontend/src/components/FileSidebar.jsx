@@ -9,6 +9,7 @@ import { toast } from '../store/toastStore';
 
 const LANG_DOT = {
   cpp: 'bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]',
+  c: 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]',
   python: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]',
 };
 
@@ -221,7 +222,7 @@ export default function FileSidebar({ onFileAction }) {
               <input
                 autoFocus
                 className="glass h-11 w-full rounded-lg px-3 text-sm text-slate-100 outline-none focus:border-cyan-400/60"
-                placeholder="文件名，如 main.cpp / main.py"
+                placeholder="文件名，如 main.c / main.cpp / main.py"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 maxLength={104}
@@ -257,7 +258,7 @@ export default function FileSidebar({ onFileAction }) {
           <p className="px-2 py-8 text-center text-sm leading-relaxed text-slate-500">
             这个项目还没有文件
             <br />
-            创建 main.cpp 或 main.py 开始吧
+            创建 main.c / main.cpp / main.py 开始吧
           </p>
         ) : (
           <ul className="space-y-1">
@@ -384,7 +385,7 @@ export default function FileSidebar({ onFileAction }) {
           </div>
         )}
         <p className="text-[10px] leading-relaxed text-slate-600">
-          支持 C++（.cpp）与 Python（.py）
+          支持 C（.c）、C++（.cpp）与 Python（.py）
           <br />
           内容自动保存
         </p>

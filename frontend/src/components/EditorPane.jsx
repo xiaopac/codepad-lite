@@ -13,6 +13,7 @@ import { monacoLanguageFromName } from '../utils/language';
 
 const LANG_DOT = {
   cpp: 'bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]',
+  c: 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]',
   python: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]',
 };
 
@@ -351,7 +352,7 @@ export default function EditorPane() {
             <div className="px-6 text-center">
               <div className="text-5xl drop-shadow-[0_0_18px_rgba(0,240,255,0.35)]">📄</div>
               <p className="mt-4 text-slate-400">从左侧文件列表选择文件开始编写代码</p>
-              <p className="mt-1 text-sm text-slate-600">支持 C++（.cpp）与 Python（.py）</p>
+              <p className="mt-1 text-sm text-slate-600">支持 C（.c）、C++（.cpp）与 Python（.py）</p>
             </div>
           </div>
         ) : (

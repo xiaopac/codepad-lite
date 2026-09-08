@@ -46,9 +46,10 @@ export async function api(path, { method = 'GET', body, keepalive = false } = {}
       clearAuth();
     }
     // 响应拦截：统一错误信息（429 限流、5xx 兜底都给友好文案）
+    // 有后端错误信息时优先展示（如环境构建失败的具体原因）
     let message = (data && data.error) || `请求失败（HTTP ${res.status}）`;
     if (res.status === 429) message = '操作太频繁了，请稍后再试';
-    if (res.status >= 500) message = '服务器开小差了，请稍后再试';
+    if (res.status >= 500 && !(data && data.error)) message = '服务器开小差了，请稍后再试';
     throw new ApiError(message, res.status);
   }
   return data;

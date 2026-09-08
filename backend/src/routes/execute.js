@@ -64,13 +64,13 @@ function logExecution(userId, language, codeLength, status, result) {
   }
 }
 
-// POST /api/execute  { language: "cpp"|"python", code, stdin, environment_id? }
+// POST /api/execute  { language: "cpp"|"python"|"c", code, stdin, environment_id? }
 // -> { stdout, stderr, compile_error, execution_time, exit_code }（需鉴权）
 router.post(
   '/',
   executeLimiter, // 每用户每分钟 10 次（需求 1.6）
   validate([
-    body('language').isIn(['cpp', 'python']).withMessage('仅支持 cpp / python 两种语言'),
+    body('language').isIn(['cpp', 'python', 'c']).withMessage('仅支持 cpp / python / c 三种语言'),
     body('code').isString().withMessage('code 必须是字符串'),
     body('stdin').optional().isString().withMessage('stdin 必须是字符串'),
     body('environment_id').optional().isInt({ min: 1 }).withMessage('environment_id 不合法'),
@@ -78,8 +78,8 @@ router.post(
   async (req, res) => {
   const { language, code, stdin, environment_id } = req.body ?? {};
 
-  if (language !== 'cpp' && language !== 'python') {
-    throw new HttpError(400, '仅支持 cpp / python 两种语言');
+  if (language !== 'cpp' && language !== 'python' && language !== 'c') {
+    throw new HttpError(400, '仅支持 cpp / python / c 三种语言');
   }
   if (typeof code !== 'string') {
     throw new HttpError(400, 'code 必须是字符串');

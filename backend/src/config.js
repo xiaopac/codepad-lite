@@ -13,7 +13,8 @@ module.exports = {
   PISTON_URL: (process.env.PISTON_URL || 'http://localhost:2000').replace(/\/+$/, ''),
   // 自定义 Python 环境构建器（env-builder 服务）
   ENV_BUILDER_URL: (process.env.ENV_BUILDER_URL || 'http://localhost:3100').replace(/\/+$/, ''),
-  ENV_BUILD_TIMEOUT_MS: Number(process.env.ENV_BUILD_TIMEOUT_MS || 300000),
+  // 环境构建总超时（env-builder 内部最多 3 次换源重试，总预算 400s，需略大于它）
+  ENV_BUILD_TIMEOUT_MS: Number(process.env.ENV_BUILD_TIMEOUT_MS || 450000),
   // 需求锁定：执行超时 10 秒（Piston 容器端也需 >= 该值，见 docker-compose.yml）
   COMPILE_TIMEOUT_MS: Number(process.env.COMPILE_TIMEOUT_MS || 10000),
   RUN_TIMEOUT_MS: Number(process.env.RUN_TIMEOUT_MS || 10000),

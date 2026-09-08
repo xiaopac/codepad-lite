@@ -108,7 +108,7 @@ export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenEn
   const runCode = useUiStore((s) => s.runCode);
   const setProfileOpen = useUiStore((s) => s.setProfileOpen);
 
-  // 仅 cpp / python 可运行（.c/.txt 只读预览）
+  // 仅 c / cpp / python 可运行（.txt 只读预览）
   const canRun = Boolean(file) && Boolean(runLanguageFromName(file?.name)) && !running;
 
   const handleLogout = () => {

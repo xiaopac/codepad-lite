@@ -11,7 +11,7 @@ const TAB_ACTIVE = 'bg-gradient-to-r from-cyan-400/25 to-blue-500/25 text-cyan-1
 const TAB_IDLE = 'text-slate-400 hover:text-slate-200';
 
 const FEATURES = [
-  { icon: '🚀', title: '在线编译运行', desc: 'C++ 与 Python 即时编译执行，10 秒超时保护，结果毫秒级返回' },
+  { icon: '🚀', title: '在线编译运行', desc: 'C / C++ / Python 即时编译执行，10 秒超时保护，结果毫秒级返回' },
   { icon: '📁', title: '项目工作区', desc: '文件夹式项目管理、多文件组织，自动保存永不丢代码' },
   { icon: '🐍', title: '自定义环境', desc: '任意 Python 版本 + 第三方库，numpy / pygame 开箱即装' },
   { icon: '🎨', title: '赛博编辑器', desc: 'Monaco 内核 + 智能补全 + 自定义背景，科技感拉满' },
@@ -19,11 +19,11 @@ const FEATURES = [
   { icon: '📱', title: 'iPad 优先', desc: '44pt 触控按钮、软键盘自适应，移动端原生手感' },
 ];
 
-const STACK = ['C++', 'Python', 'React', 'Monaco Editor', 'Docker', 'SQLite', 'Piston', 'Tailwind CSS', 'Zustand', 'Framer Motion'];
+const STACK = ['C', 'C++', 'Python', 'React', 'Monaco Editor', 'Docker', 'SQLite', 'Piston', 'Tailwind CSS', 'Zustand', 'Framer Motion'];
 
 const STATS = [
   ['50MB', '免费存储'],
-  ['2', '支持语言'],
+  ['3', '支持语言'],
   ['10s', '沙箱超时'],
   ['∞', '无限项目'],
 ];
@@ -274,11 +274,11 @@ export default function AuthPage() {
               <span className="gradient-text">云端代码实验室</span>
             </h1>
             <p className="mt-4 text-sm leading-relaxed text-slate-400">
-              为 iPad 而生的轻量级在线编译环境。随时随地编写、编译、运行 C++ / Python——
+              为 iPad 而生的轻量级在线编译环境。随时随地编写、编译、运行 C / C++ / Python——
               项目工作区、自定义环境、50MB 免费存储，一切就绪。
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
-              {['C++', 'Python', 'Monaco', 'Docker 沙箱'].map((t) => (
+              {['C', 'C++', 'Python', 'Monaco', 'Docker 沙箱'].map((t) => (
                 <span
                   key={t}
                   className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300"

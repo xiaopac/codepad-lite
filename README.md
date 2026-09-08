@@ -1,6 +1,6 @@
 # ⚡ CodePad Lite
 
-轻量级在线编译环境 —— 面向 **iPad 学生与开发者**，随时随地编写、编译和运行 **C++ / Python** 代码。
+轻量级在线编译环境 —— 面向 **iPad 学生与开发者**，随时随地编写、编译和运行 **C / C++ / Python** 代码。
 
 - **轻量化**：单后端服务 + SQLite，无重量级中间件
 - **移动优先**：44pt+ 触控按钮、软键盘自适应、触摸友好的 Monaco 编辑器
@@ -150,7 +150,11 @@ docker compose up -d piston
 | `/api/projects/:id/files/:fileId` | PUT | `{ content }` | `{ file }` | 更新文件内容（自动保存） |
 | `/api/projects/:id/files/:fileId` | PATCH | `{ name }` | `{ file }` | 重命名文件（契约表外的补充端点） |
 | `/api/projects/:id/files/:fileId` | DELETE | — | `{ success }` | 删除文件 |
-| `/api/execute` | POST | `{ language: "cpp"\|"python", code, stdin }` | `{ stdout, stderr, compile_error, execution_time, exit_code }` | 执行代码（需鉴权，写入执行日志） |
+| `/api/execute` | POST | `{ language: "c"\|"cpp"\|"python", code, stdin }` | `{ stdout, stderr, compile_error, execution_time, exit_code }` | 执行代码（需鉴权，写入执行日志） |
+| `/api/environments` | GET | — | `{ environments: [...] }` | 环境列表（含 build_log / build_command_custom） |
+| `/api/environments` | POST | `{ name, python_version, packages, build_command? }` | `{ environment }` | 创建环境并异步构建（高级模式：自定义 pip 参数，白名单校验） |
+| `/api/environments/:id` | PUT | `{ name, packages?, build_command? }` | `{ environment }` | 编辑环境并自动重建 |
+| `/api/environments/:id/rebuild` | POST | — | `{ environment }` | 重新构建 |
 | `/api/admin/users` | GET | — | `{ users: [...] }` | 【管理员】用户列表（含注册指纹） |
 | `/api/admin/users/:id/approve` | POST | — | `{ success, user }` | 【管理员】通过审核 / 重新激活 |
 | `/api/admin/users/:id/reject` | POST | — | `{ success, user }` | 【管理员】拒绝 / 封禁 |
@@ -158,7 +162,7 @@ docker compose up -d piston
 | `/api/admin/monitor` | GET | — | `{ uptime, memory, os, db, piston }` | 【管理员】系统监控快照 |
 | `/api/admin/logs` | GET | — | `{ logs }` | 【管理员】执行日志（最近 100 条） |
 
-文件名约束：`main.cpp` / `main.py` 形式（仅 `.cpp`、`.py` 扩展名，扩展名决定语言）。
+文件名约束：`main.c` / `main.cpp` / `main.py` 形式（文本文件 `.c`/`.cpp`/`.py`/`.txt`，扩展名决定语言；图片/音视频走「上传文件」）。
 
 ---
 
@@ -219,7 +223,7 @@ codepad-lite/
 - 输出映射：`stdout` / `stderr`（红色）/ `compile_error`（编译失败红块）/
   `execution_time`（Piston 的 `wall_time`，缺失时回退为后端实测耗时）/
   `exit_code`（超时被杀显示 137，并附带提示）；
-- **运行时自动安装**：后端启动后探测 `/api/v2/runtimes`，缺失的 cpp/python 会通过
+- **运行时自动安装**：后端启动后探测 `/api/v2/runtimes`，缺失的 c/cpp/python 会通过
   `/api/v2/packages` 自动安装，`docker compose up` 后无需手工步骤。
 
 ### 安全（生产加固）
@@ -298,7 +302,7 @@ cp .env.example .env
 #   ADMIN_PASSWORD=你选择的强密码
 
 docker compose up -d --build
-# 观察启动日志（首次会自动安装 piston 的 cpp/python 运行时，约 1-2 分钟）
+# 观察启动日志（首次会自动安装 piston 的 c/cpp/python 运行时，约 1-2 分钟）
 docker compose logs -f backend
 ```
 
@@ -365,7 +369,7 @@ docker run --rm -v codepad-lite_storage_data:/data -v $PWD:/backup alpine tar cz
 - **privileged 容器**：Piston 官方要求（isolate 沙箱），仅建议自用服务器运行；
 - **国内服务器网络**：若 `ghcr.io` 拉取或 piston 运行时下载（GitHub Releases）失败，
   可在服务器上配置 Docker 镜像加速 / 代理，或本机 `docker save` 三个镜像后上传 `docker load`；
-- **首次运行时机**：piston 首次启动会下载 cpp/python 工具链（约 1-2 分钟），
+- **首次运行时机**：piston 首次启动会下载 c/cpp/python 工具链（约 1-2 分钟），
   此期间执行接口会返回"正在后台自动安装"提示；
 - **系统要求**：内存 ≥ 2GB（推荐 4GB）、磁盘空闲 ≥ 5GB（piston 运行时约 1-2GB）。
 
@@ -472,7 +476,7 @@ git clone https://gitee.com/你的用户名/codepad-lite.git
 **国内服务器拉镜像 / 下载运行时失败**
 
 三个下载环节在国内都可能受阻：ghcr.io 的 piston 镜像、Docker Hub 的 node/nginx
-镜像、Piston 的 cpp/python 运行时（GitHub Releases）。
+镜像、piston 的 c/cpp/python 运行时（GitHub Releases）。
 
 - **有代理（最省事）**：Docker Desktop → Settings → Resources → Proxies → Manual，
   填入你的代理地址——镜像拉取、容器内下载全部走代理；

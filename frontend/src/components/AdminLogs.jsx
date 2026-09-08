@@ -11,6 +11,7 @@ const STATUS_META = {
 
 const LANG_BADGE = {
   cpp: 'border-sky-400/40 bg-sky-400/15 text-sky-300',
+  c: 'border-emerald-400/40 bg-emerald-400/15 text-emerald-300',
   python: 'border-amber-400/40 bg-amber-400/15 text-amber-300',
 };
 
