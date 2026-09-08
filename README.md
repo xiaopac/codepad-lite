@@ -369,6 +369,19 @@ docker run --rm -v codepad-lite_storage_data:/data -v $PWD:/backup alpine tar cz
   此期间执行接口会返回"正在后台自动安装"提示；
 - **系统要求**：内存 ≥ 2GB（推荐 4GB）、磁盘空闲 ≥ 5GB（piston 运行时约 1-2GB）。
 
+**2GB 内存服务器（Ubuntu）必做：先建 swap 兜底**（编译峰值时防 OOM）：
+
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+**海外服务器（美西/硅谷等）**：GitHub / Docker Hub / PyPI 均直连畅通，
+克隆直接用 GitHub 主仓库，无需 Gitee；pip 源保持默认即可。
+
 ### 8. 一键脚本与后续更新（Git 流程，推荐）
 
 项目内置脚本：
