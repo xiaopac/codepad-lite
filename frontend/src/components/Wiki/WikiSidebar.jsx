@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, animate, motion, useMotionValue } from 'framer-motion';
+import { AnimatePresence, animate, motion, useDragControls, useMotionValue } from 'framer-motion';
 import WikiTabs from './WikiTabs';
 import WikiDirectory from './WikiDirectory';
 import WikiContent from './WikiContent';
@@ -72,6 +72,7 @@ function loadRatio() {
 function WikiPanel({ onClose }) {
   const panelRef = useRef(null);
   const mainRef = useRef(null);
+  const dragControls = useDragControls();
 
   const saved = useMemo(loadState, []);
   const savedRatio = useMemo(loadRatio, []);
@@ -117,13 +118,13 @@ function WikiPanel({ onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // 持久化：位置 + 大小 + 分割比例
-  const persist = () => {
+  // 持久化：位置 + 大小 + 分割比例（override 用于在 React 渲染前保存目标尺寸）
+  const persist = (override = null) => {
     const r = panelRef.current?.getBoundingClientRect();
     if (!r) return;
     const { vw, vh } = viewport();
-    const w = clamp(r.width, MIN_W, vw - SAFE * 2);
-    const h = clamp(r.height, MIN_H, vh - SAFE * 2);
+    const w = clamp(override?.w ?? r.width, MIN_W, vw - SAFE * 2);
+    const h = clamp(override?.h ?? r.height, MIN_H, vh - SAFE * 2);
     const st = {
       x: clamp(r.left, SAFE, Math.max(SAFE, vw - w - SAFE)),
       y: clamp(r.top, SAFE, Math.max(SAFE, vh - h - SAFE)),
@@ -170,7 +171,21 @@ function WikiPanel({ onClose }) {
     animate(y, st.y, { type: 'spring', stiffness: 420, damping: 34 });
   };
 
-  // 右下角缩放把手：自由调整窗口大小
+  // 手动派发窗口拖拽（framer v12 的捕获阶段监听拦不住 stopPropagation，
+  // 因此由本函数精确决定哪些区域允许拖拽）：
+  //  - 按钮 / 链接 / 缩放把手 / 分割条 → 不拖
+  //  - 可滚动的目录/内容区 → 不拖（保留原生滚动）
+  //  - 标题栏、标签行、空白处、无滚动空间的内容区 → 拖
+  const startPanelDrag = (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.target.closest('button, a, input, textarea, [data-nodrag]')) return;
+    const scroller = e.target.closest('.wiki-scroll');
+    if (scroller && scroller.scrollHeight > scroller.clientHeight + 2) return;
+    dragControls.start(e);
+  };
+
+  // 右下角缩放把手：Windows 资源管理器式 —— 窗口左上角绝不动，
+  // 向右/下最多生长到屏幕边缘（留 8px）即停，永不把窗口顶走。
   const startResize = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -178,26 +193,39 @@ function WikiPanel({ onClose }) {
     const startY = e.clientY;
     const startW = sizeRef.current.w;
     const startH = sizeRef.current.h;
+    const latest = { w: startW, h: startH };
     const move = (ev) => {
       const { vw, vh } = viewport();
-      setSize({
-        w: clamp(startW + ev.clientX - startX, MIN_W, vw - SAFE * 2),
-        h: clamp(startH + ev.clientY - startY, MIN_H, vh - SAFE * 2),
-      });
+      const maxW = Math.max(MIN_W, vw - SAFE - x.get());
+      const maxH = Math.max(MIN_H, vh - SAFE - y.get());
+      latest.w = clamp(startW + ev.clientX - startX, MIN_W, maxW);
+      latest.h = clamp(startH + ev.clientY - startY, MIN_H, maxH);
+      setSize({ w: latest.w, h: latest.h });
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
-      const st = persist();
-      if (st) {
-        animate(x, st.x, { duration: 0.2, ease: 'easeOut' });
-        animate(y, st.y, { duration: 0.2, ease: 'easeOut' });
-      }
+      persist(latest); // 只记忆位置与尺寸，不动窗口
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
+  };
+
+  // 一键尺寸预设：小（上下结构）/ 中（触发左右分栏）/ 大，切换时窗口不移动
+  const SIZE_PRESETS = [
+    { id: 's', label: '小', w: 300, h: 400 },
+    { id: 'm', label: '中', w: 560, h: 440 },
+    { id: 'l', label: '大', w: 720, h: 560 },
+  ];
+  const applyPreset = (p) => {
+    const { vw, vh } = viewport();
+    const maxW = Math.max(MIN_W, vw - SAFE - x.get());
+    const maxH = Math.max(MIN_H, vh - SAFE - y.get());
+    const next = { w: clamp(p.w, MIN_W, maxW), h: clamp(p.h, MIN_H, maxH) };
+    setSize(next);
+    persist(next); // 立即按目标尺寸保存，窗口位置不变
   };
 
   // 目录/内容分割条：拖动调整占比（上下模式调高度，左右模式调宽度）
@@ -252,10 +280,13 @@ function WikiPanel({ onClose }) {
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
       />
 
-      {/* 自由窗口：原生拖拽（数值约束，方向全向）+ 右下角缩放，位置/大小记忆 */}
+      {/* 自由窗口：手动派发拖拽（数值约束，方向全向）+ 右下角缩放（位置不动），位置/大小记忆 */}
       <motion.div
         ref={panelRef}
         drag
+        dragControls={dragControls}
+        dragListener={false}
+        onPointerDown={startPanelDrag}
         dragConstraints={dragConstraints}
         dragMomentum={false}
         dragElastic={0.05}
@@ -279,6 +310,19 @@ function WikiPanel({ onClose }) {
           <h2 className="gradient-text min-w-0 flex-1 truncate text-base font-bold tracking-wide">
             编程 Wiki
           </h2>
+          {/* 一键尺寸：小 / 中（分栏）/ 大 */}
+          <div className="flex shrink-0 items-center gap-1">
+            {SIZE_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => applyPreset(p)}
+                className="flex h-8 items-center rounded-md bg-white/5 px-2 text-[11px] text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
+                title={`切换为${p.label}窗口（${p.w}×${p.h}）`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
           <button
             onClick={onClose}
             aria-label="关闭 Wiki"
@@ -288,7 +332,7 @@ function WikiPanel({ onClose }) {
           </button>
         </div>
         <p className="mt-1.5 shrink-0 pl-1 text-[10px] leading-relaxed text-slate-600">
-          ⠿ 按住标题 / 空白处拖动窗口 · 右下角 ⤡ 调整大小 · 中间分割条调整目录占比
+          ⠿ 按住标题 / 空白处拖动窗口 · 右下角 ⤡ 缩放（窗口不移动）· 小/中/大 一键切换 · 中间分割条调整目录占比
         </p>
 
         {/* 语言标签 */}
@@ -352,7 +396,7 @@ function WikiPanel({ onClose }) {
           data-nodrag
           onPointerDown={startResize}
           className="absolute bottom-0 right-0 z-10 flex h-7 w-7 cursor-nwse-resize items-end justify-end p-1 text-slate-500 transition hover:text-cyan-300"
-          title="拖动调整窗口大小"
+          title="拖动调整窗口大小（窗口位置不动）"
           style={{ touchAction: 'none' }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">

@@ -22,10 +22,6 @@ export default function WikiContent({ chapter }) {
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className="wiki-scroll min-h-0 flex-1 overflow-y-auto scroll-touch overscroll-contain px-3 pb-4 pt-1"
       style={{ touchAction: 'pan-y' }}
-      onPointerDownCapture={(e) => {
-        // 可滚动时保留原生滚动；内容不足一屏（无滚动空间）时交给面板拖拽
-        if (e.currentTarget.scrollHeight > e.currentTarget.clientHeight + 2) e.stopPropagation();
-      }}
     >
       <div className="wiki-md text-base leading-relaxed text-slate-300">
         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
