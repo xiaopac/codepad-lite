@@ -143,13 +143,8 @@ const C_SNIPPETS = [
 
 const C_ALL = [...C_SNIPPETS, ...C_KEYWORDS, ...C_TYPES, ...C_FUNCTIONS];
 
-const C_SIGNATURES = {
-  printf: sig('printf(const char* format, ...)', '格式化输出：%d %f %c %s 等占位符', ['format', '...']),
-  scanf: sig('scanf(const char* format, ...)', '格式化输入，变量前加 &', ['format', '&var...']),
-  malloc: sig('malloc(size_t size)', '分配 size 字节并返回 void*，失败返回 NULL', ['size']),
-  fopen: sig("fopen(const char* filename, const char* mode)", "打开文件：r/w/a 与 rb/wb（二进制）", ['filename', 'mode']),
-  qsort: sig('qsort(void* base, size_t n, size_t size, int(*cmp)(const void*, const void*))', '快速排序', ['base', 'n', 'size', 'cmp']),
-};
+// 注意：C_SIGNATURES 依赖下方 sig() 工厂，必须声明在 sig 之后（见 PY_SIGNATURES 附近），
+// 否则模块初始化时触发 TDZ（打包后表现为 "xxx is not a function" 白屏崩溃）。
 
 // ═══════════════════════ C++ ═══════════════════════
 
@@ -333,6 +328,15 @@ const PY_SIGNATURES = {
   open: sig("open(file, mode='r', encoding=None)", '打开文件：r/w/a/x/b/t/+', ['file', "mode='r'", 'encoding']),
   sorted: sig('sorted(iterable, key=None, reverse=False)', '返回排序后的新列表', ['iterable', 'key=None', 'reverse=False']),
   isinstance: sig('isinstance(obj, class_or_tuple)', '类型判断，返回 bool', ['obj', 'class_or_tuple']),
+};
+
+// C 函数签名提示（定义在 sig 工厂之后，避免 TDZ）
+const C_SIGNATURES = {
+  printf: sig('printf(const char* format, ...)', '格式化输出：%d %f %c %s 等占位符', ['format', '...']),
+  scanf: sig('scanf(const char* format, ...)', '格式化输入，变量前加 &', ['format', '&var...']),
+  malloc: sig('malloc(size_t size)', '分配 size 字节并返回 void*，失败返回 NULL', ['size']),
+  fopen: sig("fopen(const char* filename, const char* mode)", "打开文件：r/w/a 与 rb/wb（二进制）", ['filename', 'mode']),
+  qsort: sig('qsort(void* base, size_t n, size_t size, int(*cmp)(const void*, const void*))', '快速排序', ['base', 'n', 'size', 'cmp']),
 };
 
 function createSignatureProvider(signatures) {
