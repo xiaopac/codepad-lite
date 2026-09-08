@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useProjectStore, selectCurrentFile } from '../store/projectStore';
+import { useStorageStore } from '../store/storageStore';
 import { isValidFileName } from '../utils/language';
 import { toast } from '../store/toastStore';
 
@@ -17,6 +18,15 @@ export default function FileSidebar({ onFileAction }) {
   const createFile = useProjectStore((s) => s.createFile);
   const deleteFile = useProjectStore((s) => s.deleteFile);
   const renameFile = useProjectStore((s) => s.renameFile);
+
+  // 存储空间：文件变化时刷新 + 30 秒轮询
+  const storage = useStorageStore((s) => s.data);
+  const loadStorage = useStorageStore((s) => s.load);
+  useEffect(() => {
+    loadStorage();
+    const t = setInterval(loadStorage, 30000);
+    return () => clearInterval(t);
+  }, [loadStorage, files.length]);
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -283,10 +293,31 @@ export default function FileSidebar({ onFileAction }) {
         )}
       </div>
 
-      <div className="shrink-0 border-t border-white/10 px-3 py-2 text-[11px] leading-relaxed text-slate-600">
-        支持 C++（.cpp）与 Python（.py）
-        <br />
-        内容自动保存
+      <div className="shrink-0 border-t border-white/10 px-3 py-2">
+        {storage && (
+          <div className="mb-1.5">
+            <div className="flex items-center justify-between text-[11px] text-slate-500">
+              <span>💾 存储空间</span>
+              <span className={storage.percent >= 90 ? 'text-rose-400' : 'text-slate-400'}>
+                {storage.used_mb} / {storage.quota_mb} MB
+              </span>
+            </div>
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-purple-500 transition-all"
+                style={{
+                  width: `${Math.min(100, storage.percent)}%`,
+                  boxShadow: '0 0 6px rgba(0,240,255,0.6)',
+                }}
+              />
+            </div>
+          </div>
+        )}
+        <p className="text-[10px] leading-relaxed text-slate-600">
+          支持 C++（.cpp）与 Python（.py）
+          <br />
+          内容自动保存
+        </p>
       </div>
     </div>
   );

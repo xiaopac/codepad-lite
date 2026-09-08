@@ -9,14 +9,16 @@ function seedAdmin() {
   const passwordHash = bcrypt.hashSync(config.ADMIN_PASSWORD, 10);
 
   // UPSERT：不存在则创建；已存在则强制同步密码/角色/状态（不覆盖用户自定义的昵称/头像）
+  // 管理员存储配额 1024MB（普通用户默认 50MB）
   const info = db
     .prepare(
-      `INSERT INTO users (email, password_hash, role, status, location, nickname, avatar)
-       VALUES (?, ?, 'admin', 'active', ?, 'xiaopac', '🛡')
+      `INSERT INTO users (email, password_hash, role, status, location, nickname, avatar, storage_quota)
+       VALUES (?, ?, 'admin', 'active', ?, 'xiaopac', '🛡', 1024)
        ON CONFLICT(email) DO UPDATE SET
          role = 'admin',
          status = 'active',
-         password_hash = excluded.password_hash`,
+         password_hash = excluded.password_hash,
+         storage_quota = excluded.storage_quota`,
     )
     .run(config.ADMIN_USERNAME, passwordHash, '系统管理员');
 

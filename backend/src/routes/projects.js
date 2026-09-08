@@ -5,6 +5,7 @@ const HttpError = require('../utils/HttpError');
 const { requireAuth } = require('../middleware/auth');
 const { validate, PROJECT_NAME_RE, FILE_NAME_RE } = require('../middleware/validation');
 const fileStore = require('../services/fileStore');
+const { assertQuota } = require('../services/quota');
 const {
   languageFromName,
   isValidFileName,
@@ -153,6 +154,9 @@ router.post(
     throw new HttpError(413, `文件内容过大（最大 ${MAX_FILE_CONTENT / 1000}KB）`);
   }
 
+  // 存储配额校验（需求：默认 50MB/用户，超限拒绝写入）
+  assertQuota(req.user.id, Buffer.byteLength(content));
+
   const language = languageFromName(name);
   fileStore.writeFile(req.user.id, project.id, name, content);
   let info;
@@ -182,6 +186,10 @@ router.put('/:id/files/:fileId', (req, res) => {
   if (content.length > MAX_FILE_CONTENT) {
     throw new HttpError(413, `文件内容过大（最大 ${MAX_FILE_CONTENT / 1000}KB）`);
   }
+
+  // 配额校验：只计算增量（缩小文件不占用新空间）
+  const delta = Buffer.byteLength(content) - fileStore.fileSize(req.user.id, project.id, file.name);
+  if (delta > 0) assertQuota(req.user.id, delta);
 
   fileStore.writeFile(req.user.id, project.id, file.name, content);
   db.prepare('UPDATE files SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(file.id);

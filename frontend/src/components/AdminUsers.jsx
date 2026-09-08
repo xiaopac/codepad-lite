@@ -77,6 +77,34 @@ export default function AdminUsers() {
     }
   };
 
+  // 管理员调整存储配额（1-10240 MB）
+  const [quotaForId, setQuotaForId] = useState(null);
+  const [quotaValue, setQuotaValue] = useState('');
+  const [quotaBusy, setQuotaBusy] = useState(false);
+
+  const saveQuota = async (u) => {
+    const mb = Number(quotaValue);
+    if (!Number.isInteger(mb) || mb < 1 || mb > 10240) {
+      toast.error('配额需为 1-10240 的整数（MB）');
+      return;
+    }
+    setQuotaBusy(true);
+    try {
+      await api(`/api/admin/users/${u.id}/quota`, {
+        method: 'PUT',
+        body: { quota_mb: mb },
+      });
+      toast.success(`已将「${u.email}」的配额调整为 ${mb}MB`);
+      setQuotaForId(null);
+      setQuotaValue('');
+      load();
+    } catch (err) {
+      toast.error(err.message || '调整失败');
+    } finally {
+      setQuotaBusy(false);
+    }
+  };
+
   const counts = users
     ? {
         total: users.length,
@@ -146,6 +174,9 @@ export default function AdminUsers() {
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span>🌐 {u.ip_address || '—'}</span>
                   <span>📍 {u.location || '未知'}</span>
+                  <span>
+                    💾 {((u.used_bytes || 0) / 1048576).toFixed(2)} / {u.quota_mb ?? 50} MB
+                  </span>
                   <span>🕐 {String(u.registered_at || u.created_at || '').slice(0, 16)}</span>
                 </div>
                 {u.user_agent && (
@@ -181,6 +212,16 @@ export default function AdminUsers() {
                       >
                         🔑 重置密码
                       </button>
+                      <button
+                        onClick={() => {
+                          setQuotaForId(quotaForId === u.id ? null : u.id);
+                          setQuotaValue(String(u.quota_mb ?? 50));
+                        }}
+                        className="h-11 shrink-0 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-400/20"
+                        title="调整存储配额（MB）"
+                      >
+                        ⚖ 配额
+                      </button>
                     </div>
 
                     {/* 内联密码重置表单 */}
@@ -208,6 +249,38 @@ export default function AdminUsers() {
                               className="h-11 shrink-0 rounded-lg bg-amber-500/90 px-4 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:opacity-50"
                             >
                               确认重置
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* 内联配额调整表单 */}
+                    <AnimatePresence initial={false}>
+                      {quotaForId === u.id && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="flex gap-2 pt-1">
+                            <input
+                              type="number"
+                              min={1}
+                              max={10240}
+                              className="glass h-11 min-w-0 flex-1 rounded-lg px-3 text-sm text-slate-100 outline-none focus:border-cyan-400/60"
+                              placeholder="新配额（MB，1-10240）"
+                              value={quotaValue}
+                              onChange={(e) => setQuotaValue(e.target.value)}
+                            />
+                            <button
+                              onClick={() => saveQuota(u)}
+                              disabled={quotaBusy}
+                              className="h-11 shrink-0 rounded-lg bg-cyan-500/90 px-4 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:opacity-50"
+                            >
+                              确认调整
                             </button>
                           </div>
                         </motion.div>

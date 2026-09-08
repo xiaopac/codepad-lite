@@ -9,6 +9,8 @@ const HttpError = require('../utils/HttpError');
 const { isAdminUser } = require('../middleware/auth');
 const { validate, PASSWORD_RE, PASSWORD_MSG } = require('../middleware/validation');
 const { logger, maskEmail } = require('../utils/logger');
+const fileStore = require('../services/fileStore');
+const { getUserQuotaMb, assertQuota } = require('../services/quota');
 
 const router = express.Router();
 
@@ -60,6 +62,18 @@ function toUser(row) {
 // GET /api/user/me（requireAuth 在 app.js 挂载时统一应用）
 router.get('/me', (req, res) => {
   res.json({ user: req.user });
+});
+
+// GET /api/user/storage -> { quota_mb, used_bytes, used_mb, percent }
+router.get('/storage', (req, res) => {
+  const quota = getUserQuotaMb(req.user.id);
+  const used = fileStore.getUserUsedBytes(req.user.id);
+  res.json({
+    quota_mb: quota,
+    used_bytes: used,
+    used_mb: Math.round((used / 1048576) * 100) / 100,
+    percent: Math.min(100, Math.round((used / (quota * 1048576)) * 1000) / 10),
+  });
 });
 
 // PUT /api/user/profile  { nickname, avatar } -> { user }
@@ -151,6 +165,14 @@ router.put('/background', (req, res) => {
   if (!sniffed || sniffed !== match[1]) {
     throw new HttpError(400, '图片内容与声明类型不符，已拒绝');
   }
+
+  // 配额校验：新图大小减去将被替换的现有背景文件大小
+  const existingBgBytes = Object.values(MIME_EXT).reduce((sum, ext) => {
+    const f = `${bgPath(req.user.id)}.${ext}`;
+    return sum + (fs.existsSync(f) ? fs.statSync(f).size : 0);
+  }, 0);
+  assertQuota(req.user.id, buf.length - existingBgBytes);
+  fileStore.invalidateUsedCache(req.user.id);
 
   const dir = path.dirname(bgPath(req.user.id));
   fs.mkdirSync(dir, { recursive: true });

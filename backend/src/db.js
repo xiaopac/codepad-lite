@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT DEFAULT 'user',
   status TEXT DEFAULT 'pending',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  storage_quota INTEGER DEFAULT 50,   -- 存储配额（MB），默认 50
+  storage_used INTEGER DEFAULT 0      -- 已用空间快照（字节）；实时值以磁盘目录计算为准
 );
 `);
 
@@ -52,6 +54,8 @@ function migrateUsersTable() {
       ['registered_at', 'DATETIME'],
       ['nickname', 'TEXT'],
       ['avatar', 'TEXT'],
+      ['storage_quota', 'INTEGER DEFAULT 50'],  // 存储配额（MB）
+      ['storage_used', 'INTEGER DEFAULT 0'],    // 已用空间快照（字节）
     ];
     for (const [name, def] of additions) {
       if (!cols.includes(name)) {

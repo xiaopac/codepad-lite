@@ -13,6 +13,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { validate, PASSWORD_RE, PASSWORD_MSG } = require('../middleware/validation');
 const { logger, maskEmail } = require('../utils/logger');
 const piston = require('../services/piston');
+const fileStore = require('../services/fileStore');
 
 const router = express.Router();
 router.use(requireAuth, requireAdmin);
@@ -89,14 +90,19 @@ router.get('/stats', (req, res) => {
   });
 });
 
-// GET /api/admin/users -> { users: [...] }（含注册指纹）
+// GET /api/admin/users -> { users: [...] }（含注册指纹 + 存储配额/用量）
 router.get('/users', (req, res) => {
   const users = db
     .prepare(
-      `SELECT id, email, role, status, ip_address, location, user_agent, created_at, registered_at
+      `SELECT id, email, role, status, ip_address, location, user_agent, created_at, registered_at, storage_quota
        FROM users ORDER BY id DESC LIMIT 200`,
     )
-    .all();
+    .all()
+    .map((u) => ({
+      ...u,
+      quota_mb: Number(u.storage_quota) || 50,
+      used_bytes: fileStore.getUserUsedBytes(u.id),
+    }));
   res.json({ users });
 });
 
@@ -115,7 +121,8 @@ function guardAdminTarget(target) {
 }
 
 // POST /api/admin/users/:id/approve -> { success, user }（待审核 → 已激活 / 拒绝后重新放行）
-router.post('/users/:id/approve', (req, res) => {  const target = getUserById(req.params.id);
+router.post('/users/:id/approve', (req, res) => {
+  const target = getUserById(req.params.id);
   guardAdminTarget(target);
   db.prepare("UPDATE users SET status = 'active' WHERE id = ?").run(target.id);
   logger.info(`[admin] ${maskEmail(req.user.email)} 通过审核 ${maskEmail(target.email)}`);
@@ -145,6 +152,22 @@ router.post(
     );
     logger.info(`[admin] ${maskEmail(req.user.email)} 重置密码 ${maskEmail(target.email)}`);
     res.json({ success: true, user: { id: target.id, email: target.email } });
+  },
+);
+
+// PUT /api/admin/users/:id/quota  { quota_mb } -> { success, user }（调整存储配额，1-10240 MB）
+router.put(
+  '/users/:id/quota',
+  validate([body('quota_mb').isInt({ min: 1, max: 10240 }).withMessage('配额需为 1-10240 的整数（MB）')]),
+  (req, res) => {
+    const target = getUserById(req.params.id);
+    guardAdminTarget(target);
+    db.prepare('UPDATE users SET storage_quota = ? WHERE id = ?').run(req.body.quota_mb, target.id);
+    logger.info(`[admin] ${maskEmail(req.user.email)} 调整配额 ${maskEmail(target.email)} -> ${req.body.quota_mb}MB`);
+    res.json({
+      success: true,
+      user: { id: target.id, email: target.email, quota_mb: req.body.quota_mb },
+    });
   },
 );
 

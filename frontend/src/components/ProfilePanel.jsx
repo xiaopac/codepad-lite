@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
+import { useStorageStore } from '../store/storageStore';
 import { api } from '../api/client';
 import { toast } from '../store/toastStore';
 
@@ -30,6 +31,12 @@ export default function ProfilePanel({ onClose }) {
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
+
+  const storage = useStorageStore((s) => s.data);
+  const loadStorage = useStorageStore((s) => s.load);
+  useEffect(() => {
+    loadStorage();
+  }, [loadStorage]);
 
   const isAdmin = user?.role === 'admin';
   const statusMeta = STATUS_META[user?.status] || STATUS_META.pending;
@@ -223,6 +230,12 @@ export default function ProfilePanel({ onClose }) {
                 <span className="text-slate-500">状态</span>
                 <span className={`rounded-full border px-2 py-0.5 text-xs ${statusMeta.cls}`}>
                   {statusMeta.label}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-500">存储空间</span>
+                <span className="text-slate-300">
+                  {storage ? `${storage.used_mb} / ${storage.quota_mb} MB` : '…'}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-2">

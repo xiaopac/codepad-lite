@@ -44,6 +44,7 @@ function ensureProjectDir(userId, projectId) {
 function writeFile(userId, projectId, name, content) {
   ensureProjectDir(userId, projectId);
   fs.writeFileSync(absFilePath(userId, projectId, name), String(content ?? ''), 'utf8');
+  invalidateUsedCache(userId);
 }
 
 function readFile(userId, projectId, name) {
@@ -55,6 +56,15 @@ function readFile(userId, projectId, name) {
   }
 }
 
+// 文件在磁盘上的实际字节数（不存在为 0）
+function fileSize(userId, projectId, name) {
+  try {
+    return fs.statSync(absFilePath(userId, projectId, name)).size;
+  } catch {
+    return 0;
+  }
+}
+
 function renameFileOnDisk(userId, projectId, oldName, newName) {
   ensureProjectDir(userId, projectId);
   fs.renameSync(absFilePath(userId, projectId, oldName), absFilePath(userId, projectId, newName));
@@ -63,6 +73,7 @@ function renameFileOnDisk(userId, projectId, oldName, newName) {
 function deleteFileOnDisk(userId, projectId, name) {
   try {
     fs.unlinkSync(absFilePath(userId, projectId, name));
+    invalidateUsedCache(userId);
   } catch (err) {
     if (!err || err.code !== 'ENOENT') throw err;
   }
@@ -70,6 +81,42 @@ function deleteFileOnDisk(userId, projectId, name) {
 
 function deleteProjectDir(userId, projectId) {
   fs.rmSync(projectDir(userId, projectId), { recursive: true, force: true });
+  invalidateUsedCache(userId);
+}
+
+// ── 已用空间统计（递归目录计算，5 秒 TTL 缓存） ──
+const usedCache = new Map(); // userId -> { bytes, at }
+
+function invalidateUsedCache(userId) {
+  usedCache.delete(String(userId));
+}
+
+function getUserUsedBytes(userId) {
+  const key = String(userId);
+  const hit = usedCache.get(key);
+  if (hit && Date.now() - hit.at < 5000) return hit.bytes;
+
+  let total = 0;
+  try {
+    const dir = userDir(userId);
+    if (fs.existsSync(dir)) {
+      const walk = (p) => {
+        for (const entry of fs.readdirSync(p, { withFileTypes: true })) {
+          const full = path.join(p, entry.name);
+          if (entry.isDirectory()) walk(full);
+          else if (entry.isFile()) {
+            try {
+              total += fs.statSync(full).size;
+            } catch { /* 忽略瞬时文件 */ }
+          }
+        }
+      };
+      walk(dir);
+    }
+  } catch { /* 权限等异常按 0 处理 */ }
+
+  usedCache.set(key, { bytes: total, at: Date.now() });
+  return total;
 }
 
 module.exports = {
@@ -80,7 +127,10 @@ module.exports = {
   ensureProjectDir,
   writeFile,
   readFile,
+  fileSize,
   renameFileOnDisk,
   deleteFileOnDisk,
   deleteProjectDir,
+  getUserUsedBytes,
+  invalidateUsedCache,
 };
