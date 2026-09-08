@@ -8,6 +8,7 @@ build/
 # runtime data (backend)
 backend/data/
 backend/storage/
+backend/logs/
 
 # env & logs
 .env
