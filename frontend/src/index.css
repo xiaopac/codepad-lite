@@ -346,3 +346,134 @@ button:not(:disabled):active {
   border: 1px solid rgba(0, 240, 255, 0.25) !important;
   border-radius: 10px;
 }
+
+/* ── 站内 Wiki：滚动条美化 ─────────────────────────────── */
+.wiki-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 240, 255, 0.35) transparent;
+}
+.wiki-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.wiki-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wiki-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.28);
+  border-radius: 999px;
+}
+.wiki-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.5);
+}
+
+/* ── 站内 Wiki：Markdown 内容排版（iPad 阅读优化：行高 ≥1.6）── */
+.wiki-md {
+  line-height: 1.7;
+  word-break: break-word;
+}
+.wiki-md > *:first-child {
+  margin-top: 0;
+}
+.wiki-md h1,
+.wiki-md h2,
+.wiki-md h3,
+.wiki-md h4 {
+  margin: 0.9em 0 0.45em;
+  line-height: 1.4;
+  color: #dbeafe;
+  font-weight: 600;
+}
+.wiki-md h1 {
+  font-size: 1.25em;
+}
+.wiki-md h2 {
+  font-size: 1.15em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.18);
+}
+.wiki-md h3 {
+  font-size: 1.05em;
+  color: #a5f3fc;
+}
+.wiki-md p {
+  margin: 0.55em 0;
+}
+.wiki-md a {
+  color: #22d3ee;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.wiki-md ul,
+.wiki-md ol {
+  margin: 0.55em 0;
+  padding-left: 1.4em;
+}
+.wiki-md ul {
+  list-style: disc;
+}
+.wiki-md ol {
+  list-style: decimal;
+}
+.wiki-md li {
+  margin: 0.3em 0;
+}
+.wiki-md blockquote {
+  margin: 0.7em 0;
+  padding: 0.45em 0.9em;
+  border-left: 3px solid rgba(0, 240, 255, 0.6);
+  border-radius: 0 8px 8px 0;
+  background: rgba(0, 240, 255, 0.07);
+  color: #cbd5e1;
+}
+.wiki-md blockquote p {
+  margin: 0.2em 0;
+}
+.wiki-md code {
+  font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #a5f3fc;
+}
+.wiki-md pre {
+  margin: 0.7em 0;
+  padding: 0.85em 1em;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  background: #0a0a12 !important;
+  overflow-x: auto;
+  line-height: 1.55;
+}
+.wiki-md pre code {
+  padding: 0;
+  background: transparent !important;
+  color: inherit;
+  font-size: 0.78em;
+}
+.wiki-md table {
+  margin: 0.7em 0;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88em;
+}
+.wiki-md th,
+.wiki-md td {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+.wiki-md th {
+  background: rgba(0, 240, 255, 0.08);
+  color: #a5f3fc;
+  font-weight: 600;
+}
+.wiki-md tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.03);
+}
+.wiki-md hr {
+  margin: 1em 0;
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(0, 240, 255, 0.4), transparent);
+}

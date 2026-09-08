@@ -11,11 +11,14 @@ import Workspace from './components/Workspace';
 import MediaPreview from './components/MediaPreview';
 import ToastContainer from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
+import WikiButton from './components/Wiki/WikiButton';
 
 // 代码分割：低频页面懒加载
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const EnvironmentsView = lazy(() => import('./components/EnvironmentsView'));
 const ProfilePanel = lazy(() => import('./components/ProfilePanel'));
+// Wiki 侧边栏体积较大（react-markdown + highlight.js），点击图标时才加载
+const WikiSidebar = lazy(() => import('./components/Wiki/WikiSidebar'));
 
 // 路由级页面转场：滑动淡入（仅 opacity/transform，iPad 上 GPU 合成流畅）
 const pageTransition = {
@@ -173,6 +176,8 @@ export default function App() {
   const boot = useAuthStore((s) => s.boot);
   const profileOpen = useUiStore((s) => s.profileOpen);
   const setProfileOpen = useUiStore((s) => s.setProfileOpen);
+  // 站内 Wiki：贯穿全站（不记忆打开状态，仅记忆拖拽位置）
+  const [wikiOpen, setWikiOpen] = useState(false);
 
   // 有 token 时拉取当前用户信息（无效则自动登出）
   useEffect(() => {
@@ -205,6 +210,12 @@ export default function App() {
           </AnimatePresence>
 
           <ToastContainer />
+
+          {/* 站内 Wiki 书签：左下角图标（全站可用）＋ 可拖拽侧边栏 */}
+          <WikiButton open={wikiOpen} onClick={() => setWikiOpen((v) => !v)} />
+          <Suspense fallback={null}>
+            <WikiSidebar open={wikiOpen} onClose={() => setWikiOpen(false)} />
+          </Suspense>
         </ErrorBoundary>
       </div>
     </BrowserRouter>
