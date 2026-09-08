@@ -2,14 +2,14 @@ import { create } from 'zustand';
 import { api } from '../api/client';
 import { useEditorStore } from './editorStore';
 import { useProjectStore, selectCurrentFile } from './projectStore';
-import { languageFromName } from '../utils/language';
+import { runLanguageFromName } from '../utils/language';
 
 const initialOutputHeight = () => {
   const vh = (typeof window !== 'undefined' && (window.visualViewport?.height || window.innerHeight)) || 800;
   return Math.max(160, Math.min(420, Math.round(vh * 0.3)));
 };
 
-// UI 状态：运行结果、stdin 输入、输出面板尺寸/折叠、运行中标记
+// UI 状态：运行结果、stdin 输入、输出面板尺寸/折叠、运行中标记、个人设置面板
 export const useUiStore = create((set, get) => ({
   stdin: '',
   result: null,
@@ -18,6 +18,9 @@ export const useUiStore = create((set, get) => ({
   running: false,
   outputOpen: true,
   outputTab: 'output', // 'output' | 'stdin'
+  profileOpen: false,
+
+  setProfileOpen: (v) => set({ profileOpen: v }),
   outputHeight: initialOutputHeight(),
 
   setStdin: (v) => set({ stdin: v }),
@@ -25,12 +28,12 @@ export const useUiStore = create((set, get) => ({
   setOutputHeight: (h) => set({ outputHeight: h }),
   toggleOutput: () => set((s) => ({ outputOpen: !s.outputOpen })),
 
-  // 运行当前文件（语言由扩展名推断）
+  // 运行当前文件（仅 cpp / python 可运行）
   runCode: async () => {
     if (get().running) return;
     const file = selectCurrentFile(useProjectStore.getState());
     if (!file) return;
-    const language = languageFromName(file.name);
+    const language = runLanguageFromName(file.name);
     if (!language) return;
 
     const code = useEditorStore.getState().code;

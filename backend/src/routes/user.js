@@ -11,6 +11,7 @@ const { validate, PASSWORD_RE, PASSWORD_MSG } = require('../middleware/validatio
 const { logger, maskEmail } = require('../utils/logger');
 const fileStore = require('../services/fileStore');
 const { getUserQuotaMb, assertQuota } = require('../services/quota');
+const { sniffMime } = require('../utils/sniff');
 
 const router = express.Router();
 
@@ -18,15 +19,6 @@ const router = express.Router();
 const MIME_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 const MAX_IMAGE_BYTES = 2.5 * 1024 * 1024; // 2.5MB
 const DEFAULT_BG_SETTINGS = { scale: 100, contrast: 100, opacity: 18, posX: 50, posY: 30 };
-
-// 魔数嗅探：校验文件真实类型（不信任声明的 MIME）
-function sniffMime(buf) {
-  if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png';
-  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
-  if (buf.length > 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
-  if (buf.length > 6 && (buf.toString('ascii', 0, 6) === 'GIF87a' || buf.toString('ascii', 0, 6) === 'GIF89a')) return 'image/gif';
-  return null;
-}
 
 function bgPath(userId) {
   const base = path.join(config.STORAGE_DIR, 'users', String(userId), 'editor-background');

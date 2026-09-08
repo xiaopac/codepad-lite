@@ -7,8 +7,9 @@ import { useEditorStore } from '../store/editorStore';
 import { useProjectStore, selectCurrentFile } from '../store/projectStore';
 import { useUiStore } from '../store/uiStore';
 import { useBackgroundStore } from '../store/backgroundStore';
+import { useMediaStore } from '../store/mediaStore';
 import { toast } from '../store/toastStore';
-import { languageFromName } from '../utils/language';
+import { monacoLanguageFromName } from '../utils/language';
 
 const LANG_DOT = {
   cpp: 'bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]',
@@ -252,7 +253,7 @@ export default function EditorPane() {
     setTimeout(() => setRipples((rs) => rs.filter((r) => r.id !== id)), 700);
   };
 
-  const language = file ? languageFromName(file.name) || 'plaintext' : 'plaintext';
+  const language = file ? monacoLanguageFromName(file.name) : 'plaintext';
 
   return (
     <div className="editor-shell relative flex min-h-0 flex-1 flex-col bg-cyber-panel">
@@ -261,6 +262,7 @@ export default function EditorPane() {
         <div className="flex h-11 shrink-0 items-end gap-1 overflow-x-auto scroll-touch border-b border-white/10 bg-[#0b0b13]/90 px-2">
           {files.map((f) => {
             const active = file?.id === f.id;
+            const isMedia = f.kind === 'image' || f.kind === 'audio' || f.kind === 'video';
             return (
               <div
                 key={f.id}
@@ -271,10 +273,18 @@ export default function EditorPane() {
                 }`}
               >
                 <button
-                  onClick={() => openFile(f)}
+                  onClick={() =>
+                    isMedia
+                      ? useMediaStore.getState().open({ id: f.id, name: f.name, kind: f.kind, projectId: useProjectStore.getState().currentProject?.id })
+                      : openFile(f)
+                  }
                   className="flex min-h-[36px] items-center gap-1.5 px-3"
                 >
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${LANG_DOT[f.language] || 'bg-slate-500'}`} />
+                  {isMedia ? (
+                    <span className="text-xs">{f.kind === 'image' ? '🖼' : f.kind === 'audio' ? '🎵' : '🎬'}</span>
+                  ) : (
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${LANG_DOT[f.language] || 'bg-slate-500'}`} />
+                  )}
                   <span className="max-w-[140px] truncate">{f.name}</span>
                 </button>
                 {active && (

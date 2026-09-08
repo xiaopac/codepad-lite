@@ -34,4 +34,6 @@ module.exports = {
   CORS_ORIGINS: process.env.CORS_ORIGINS || '',
   // 日志目录（winston 按日轮转，保留 30 天）
   LOG_DIR: process.env.LOG_DIR || path.join(ROOT, 'logs'),
+  // 多媒体上传单文件上限（字节，默认 15MB；受 50MB 用户配额约束）
+  MAX_UPLOAD_BYTES: Number(process.env.MAX_UPLOAD_BYTES || 15 * 1024 * 1024),
 };

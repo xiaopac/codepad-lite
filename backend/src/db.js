@@ -98,12 +98,13 @@ CREATE TABLE IF NOT EXISTS files (
   name TEXT NOT NULL,
   file_path TEXT NOT NULL,
   language TEXT NOT NULL,
+  storage_path TEXT,   -- 二进制文件存储的相对路径（文本文件为 NULL）
+  mime_type TEXT,      -- MIME 类型（文本为 text/plain）
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
   UNIQUE(project_id, name)
 );
-
 -- 执行日志（管理员后台审计用；用户删除后保留日志，user_id 置空）
 CREATE TABLE IF NOT EXISTS execution_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,6 +139,13 @@ CREATE TABLE IF NOT EXISTS environments (
 // 项目 ↔ 环境绑定（必须在 projects 表创建之后执行）
 if (!db.prepare('PRAGMA table_info(projects)').all().some((c) => c.name === 'environment_id')) {
   db.exec('ALTER TABLE projects ADD COLUMN environment_id INTEGER');
+}
+
+// 多媒体文件支持（向后兼容迁移）：二进制存储路径 + MIME 类型
+{
+  const cols = db.prepare('PRAGMA table_info(files)').all().map((c) => c.name);
+  if (!cols.includes('storage_path')) db.exec('ALTER TABLE files ADD COLUMN storage_path TEXT');
+  if (!cols.includes('mime_type')) db.exec('ALTER TABLE files ADD COLUMN mime_type TEXT');
 }
 
 // 构建日志列（自检机制：pip 输出分类后入库，前端可查看）

@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useProjectStore, selectCurrentFile } from '../store/projectStore';
 import { useStorageStore } from '../store/storageStore';
-import { isValidFileName } from '../utils/language';
+import { useMediaStore } from '../store/mediaStore';
+import { api } from '../api/client';
+import { isValidFileName, isTextFileName } from '../utils/language';
 import { toast } from '../store/toastStore';
 
 const LANG_DOT = {
@@ -18,6 +20,19 @@ export default function FileSidebar({ onFileAction }) {
   const createFile = useProjectStore((s) => s.createFile);
   const deleteFile = useProjectStore((s) => s.deleteFile);
   const renameFile = useProjectStore((s) => s.renameFile);
+  const appendFile = useProjectStore((s) => s.appendFile);
+  const openMedia = useMediaStore((s) => s.open);
+
+  // 智能打开：文本进编辑器，媒体开预览
+  const openSmart = (f) => {
+    if (f.kind && f.kind !== 'text') {
+      openMedia({ id: f.id, name: f.name, kind: f.kind, projectId: project?.id });
+      onFileAction?.();
+      return;
+    }
+    openFile(f);
+    onFileAction?.();
+  };
 
   // 存储空间：文件变化时刷新 + 30 秒轮询
   const storage = useStorageStore((s) => s.data);
@@ -34,15 +49,17 @@ export default function FileSidebar({ onFileAction }) {
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
   const [deletingId, setDeletingId] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const deleteTimer = useRef(null);
+  const uploadRef = useRef(null);
 
   useEffect(() => () => clearTimeout(deleteTimer.current), []);
 
   const submitCreate = async (e) => {
     e.preventDefault();
     const name = newName.trim();
-    if (!isValidFileName(name)) {
-      setFormError('仅支持 .cpp / .py 结尾的文件名，如 main.cpp、main.py');
+    if (!isTextFileName(name)) {
+      setFormError('文本文件支持 .cpp / .py / .c / .txt（媒体文件请用上传）');
       return;
     }
     setFormError('');
@@ -57,6 +74,37 @@ export default function FileSidebar({ onFileAction }) {
     }
   };
 
+  // 上传文件（图片/音视频）：iPad 上 accept 会弹出 照片图库/拍照/文件 App 选择
+  const onPickFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('文件大小需在 15MB 以内');
+      return;
+    }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const pid = project?.id;
+        if (!pid) return;
+        const data = await api(`/api/projects/${pid}/upload`, {
+          method: 'POST',
+          body: { name: file.name, data: String(reader.result) },
+        });
+        appendFile(data.file);
+        toast.success(`已上传 ${file.name}`);
+        onFileAction?.();
+      } catch (err) {
+        toast.error(err.message || '上传失败');
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const startRename = (file) => {
     setRenamingId(file.id);
     setRenameValue(file.name);
@@ -69,7 +117,7 @@ export default function FileSidebar({ onFileAction }) {
       return;
     }
     if (!isValidFileName(name)) {
-      setFormError('仅支持 .cpp / .py 结尾的文件名');
+      setFormError('不支持的扩展名（文本/图片/音频/视频）');
       return;
     }
     setFormError('');
@@ -130,13 +178,32 @@ export default function FileSidebar({ onFileAction }) {
             {project?.name || '文件'}
           </span>
         </div>
-        <button
-          onClick={() => setCreating((v) => !v)}
-          className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 text-xl font-bold leading-none text-white shadow-neon-cyan"
-          aria-label="新建文件"
-        >
-          ＋
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* 上传文件（图片/音视频）：iPad 弹出 照片图库/拍照/文件 App 选择 */}
+          <button
+            onClick={() => uploadRef.current?.click()}
+            disabled={uploading}
+            className="flex h-10 items-center gap-1 rounded-lg bg-white/5 px-2.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-cyan-200 disabled:opacity-50"
+            aria-label="上传文件"
+            title="上传图片 / 音视频"
+          >
+            {uploading ? '⏳' : '⬆'}
+          </button>
+          <input
+            ref={uploadRef}
+            type="file"
+            accept="image/*,audio/*,video/*"
+            className="hidden"
+            onChange={onPickFile}
+          />
+          <button
+            onClick={() => setCreating((v) => !v)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 text-xl font-bold leading-none text-white shadow-neon-cyan"
+            aria-label="新建文件"
+          >
+            ＋
+          </button>
+        </div>
       </div>
 
       {/* 新建文件表单：高度 0→auto 弹簧过渡 */}
@@ -235,17 +302,20 @@ export default function FileSidebar({ onFileAction }) {
                       </form>
                     ) : (
                       <button
-                        onClick={() => {
-                          openFile(f);
-                          onFileAction?.();
-                        }}
+                        onClick={() => openSmart(f)}
                         className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 px-2 pl-3 text-left"
                       >
-                        <span
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                            LANG_DOT[f.language] || 'bg-slate-500'
-                          }`}
-                        />
+                        {f.kind === 'image' || f.kind === 'audio' || f.kind === 'video' ? (
+                          <span className="shrink-0 text-sm">
+                            {f.kind === 'image' ? '🖼' : f.kind === 'audio' ? '🎵' : '🎬'}
+                          </span>
+                        ) : (
+                          <span
+                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                              LANG_DOT[f.language] || 'bg-slate-500'
+                            }`}
+                          />
+                        )}
                         <span
                           className={`truncate text-sm ${
                             active ? 'font-medium text-cyan-200' : 'text-slate-300'

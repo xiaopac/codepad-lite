@@ -56,6 +56,23 @@ function readFile(userId, projectId, name) {
   }
 }
 
+// 二进制写入（多媒体上传）
+function writeFileRaw(userId, projectId, name, buffer) {
+  ensureProjectDir(userId, projectId);
+  fs.writeFileSync(absFilePath(userId, projectId, name), buffer);
+  invalidateUsedCache(userId);
+}
+
+// 二进制读取（媒体流）；不存在返回 null
+function readFileRaw(userId, projectId, name) {
+  try {
+    return fs.readFileSync(absFilePath(userId, projectId, name));
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
 // 文件在磁盘上的实际字节数（不存在为 0）
 function fileSize(userId, projectId, name) {
   try {
@@ -126,7 +143,9 @@ module.exports = {
   relFilePath,
   ensureProjectDir,
   writeFile,
+  writeFileRaw,
   readFile,
+  readFileRaw,
   fileSize,
   renameFileOnDisk,
   deleteFileOnDisk,

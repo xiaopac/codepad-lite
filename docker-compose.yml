@@ -113,7 +113,8 @@ services:
       - "8080:80"
     mem_limit: 128m # nginx 静态托管，占用极小
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      # 注意：容器内 localhost 解析为 ::1，而 nginx 仅监听 IPv4，须显式用 127.0.0.1
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
       interval: 20s
       timeout: 8s
       retries: 5

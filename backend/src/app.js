@@ -38,7 +38,7 @@ if (allowedOrigins.length > 0) {
   app.use(cors({ origin: allowedOrigins }));
 }
 
-app.use(express.json({ limit: '8mb' })); // 8MB：编辑器背景图 base64；代码大小在 execute 内单独校验
+app.use(express.json({ limit: '24mb' })); // 24MB：多媒体 base64 上传；代码大小在 execute 内单独校验
 
 // 全局兜底限流（每 IP 120 次/分钟）
 app.use(globalLimiter);

@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
 import { useProjectStore } from '../store/projectStore';
 import { useEditorStore } from '../store/editorStore';
+import { useUiStore } from '../store/uiStore';
 import { toast } from '../store/toastStore';
 
-export default function ProjectListView({ onOpenAdmin, onOpenProfile, onOpenEnvironments }) {
+export default function ProjectListView({ onOpenEnvironments }) {
+  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const setProfileOpen = useUiStore((s) => s.setProfileOpen);
   const projects = useProjectStore((s) => s.projects);
   const loadingProjects = useProjectStore((s) => s.loadingProjects);
   const fetchProjects = useProjectStore((s) => s.fetchProjects);
@@ -80,13 +84,20 @@ export default function ProjectListView({ onOpenAdmin, onOpenProfile, onOpenEnvi
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="glass-strong flex h-14 shrink-0 items-center justify-between border-x-0 border-t-0 px-4">
         <div className="flex items-center gap-2">
+          <Link
+            to="/"
+            className="flex h-11 items-center gap-1 rounded-lg px-2 text-sm text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
+            aria-label="返回首页"
+          >
+            <span className="text-lg leading-none">←</span> 返回首页
+          </Link>
           <span className="neon-text text-xl">⚡</span>
-          <span className="neon-text font-semibold tracking-wider">CodePad Lite</span>
+          <span className="neon-text hidden font-semibold tracking-wider sm:inline">CodePad Lite</span>
         </div>
         <div className="flex items-center gap-2">
           {user?.role === 'admin' && (
             <button
-              onClick={onOpenAdmin}
+              onClick={() => navigate('/admin')}
               className="flex h-11 items-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-500/25 to-cyan-400/25 px-3 text-sm text-purple-200 shadow-neon-purple transition hover:from-purple-500/45 hover:to-cyan-400/45"
             >
               🛡 管理后台
@@ -105,7 +116,7 @@ export default function ProjectListView({ onOpenAdmin, onOpenProfile, onOpenEnvi
             </span>
           </div>
           <button
-            onClick={onOpenProfile}
+            onClick={() => setProfileOpen(true)}
             className="flex h-11 w-11 items-center justify-center rounded-lg text-lg text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
             aria-label="个人设置"
             title="个人设置"

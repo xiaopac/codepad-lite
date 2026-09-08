@@ -118,12 +118,17 @@ export const useProjectStore = create((set, get) => ({
   },
 
   openFile: async (file) => {
+    // 媒体文件不进编辑器（由 MediaPreview 处理）
+    if (file.kind && file.kind !== 'text') return;
     if (get().currentFileId === file.id) return;
     await get().saveCurrent(); // 切换文件前自动保存
     useEditorStore.getState().setCode(file.content ?? '');
     useEditorStore.getState().markSaved();
     set({ currentFileId: file.id });
   },
+
+  // 上传成功后的本地追加（避免整表重新拉取）
+  appendFile: (file) => set((s) => ({ files: [...s.files, file] })),
 
   // 关闭当前标签页（不删除文件，仅退出编辑状态）
   closeCurrentFile: async () => {

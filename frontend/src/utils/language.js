@@ -1,12 +1,55 @@
-// 从文件扩展名推断语言：.cpp → cpp，.py → python
-export function languageFromName(name) {
-  const lower = String(name || '').toLowerCase();
-  if (lower.endsWith('.cpp')) return 'cpp';
-  if (lower.endsWith('.py')) return 'python';
-  return null;
+// 文件分类（与后端 utils/fileKind.js 保持一致）：
+// 文本（Monaco 编辑）、图片、音频、视频
+const TEXT_KINDS = {
+  cpp: 'cpp',
+  py: 'python',
+  c: 'c',
+  txt: 'plaintext',
+};
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'm4a', 'ogg']);
+const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov']);
+const ALLOWED_EXTS = new Set([...Object.keys(TEXT_KINDS), ...IMAGE_EXTS, ...AUDIO_EXTS, ...VIDEO_EXTS]);
+
+const NAME_RE = /^[A-Za-z0-9_-]{1,100}\.([A-Za-z0-9]+)$/;
+
+// 完整分类：kind + monaco 语言
+export function classifyFileName(name) {
+  const m = NAME_RE.exec(String(name || '').trim());
+  if (!m) return null;
+  const ext = m[1].toLowerCase();
+  if (!ALLOWED_EXTS.has(ext)) return null;
+  if (TEXT_KINDS[ext]) return { kind: 'text', language: TEXT_KINDS[ext], ext };
+  if (IMAGE_EXTS.has(ext)) return { kind: 'image', language: null, ext };
+  if (AUDIO_EXTS.has(ext)) return { kind: 'audio', language: null, ext };
+  return { kind: 'video', language: null, ext };
 }
 
-// 与后端一致的文件名校验（白名单，防路径穿越）
+// 编辑器高亮语言（.cpp/.py/.c/.txt）
+export function monacoLanguageFromName(name) {
+  const c = classifyFileName(name);
+  return c && c.kind === 'text' ? c.language : 'plaintext';
+}
+
+// 可运行语言（仅 cpp / python）
+export function runLanguageFromName(name) {
+  const c = classifyFileName(name);
+  if (!c || c.kind !== 'text') return null;
+  return c.language === 'cpp' || c.language === 'python' ? c.language : null;
+}
+
+// 兼容旧调用：仅 cpp/python
+export function languageFromName(name) {
+  return runLanguageFromName(name);
+}
+
+// 文件名合法性（扩展名白名单）
 export function isValidFileName(name) {
-  return /^[A-Za-z0-9_-]{1,100}\.(cpp|py)$/i.test(String(name || '').trim());
+  return classifyFileName(name) !== null;
+}
+
+// 是否为可创建/编辑的文本文件
+export function isTextFileName(name) {
+  const c = classifyFileName(name);
+  return c ? c.kind === 'text' : false;
 }

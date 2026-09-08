@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '../store/authStore';
+import { useProjectStore } from '../store/projectStore';
+import { useEditorStore } from '../store/editorStore';
 import { api } from '../api/client';
 
 const TAB_BASE = 'h-11 flex-1 rounded-lg text-base font-medium transition';
@@ -188,6 +191,21 @@ function AuthCard() {
 
 // ── NFT 风格一页式着陆页 ──
 export default function AuthPage() {
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const formRef = useRef(null);
+
+  const handleLogout = () => {
+    clearAuth();
+    useProjectStore.getState().resetAll();
+    useEditorStore.getState().reset();
+  };
+
+  const scrollToForm = () => {
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto scroll-touch">
       {/* 背景动效（固定层，不拦截交互） */}
@@ -205,14 +223,39 @@ export default function AuthPage() {
             <span className="neon-text text-2xl">⚡</span>
             <span className="neon-text text-lg font-bold tracking-widest">CodePad Lite</span>
           </div>
-          <a
-            href="https://github.com/xiaopac/codepad-lite"
-            target="_blank"
-            rel="noreferrer"
-            className="glass flex h-11 items-center gap-1.5 rounded-lg px-3 text-sm text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
-          >
-            ⭐ GitHub
-          </a>
+
+          {user ? (
+            <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-1.5 sm:flex">
+                <span className="text-base">{user.avatar || '👤'}</span>
+                <span className="max-w-[140px] truncate text-sm text-slate-300">
+                  {user.nickname || user.email}
+                </span>
+              </div>
+              <span className="hidden rounded-full border border-emerald-400/40 bg-emerald-400/15 px-2 py-0.5 text-[10px] text-emerald-300 sm:inline">
+                ● 已登录
+              </span>
+              <button
+                onClick={() => navigate('/project')}
+                className="flex h-11 items-center rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 px-4 text-sm font-semibold text-white shadow-neon-cyan transition hover:shadow-neon-cyan-lg"
+              >
+                进入工作区 →
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex h-11 items-center rounded-lg px-3 text-sm text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
+              >
+                退出
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={scrollToForm}
+              className="glass flex h-11 items-center rounded-lg px-4 text-sm text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200"
+            >
+              登录
+            </button>
+          )}
         </header>
 
         {/* Hero + 登录表单 */}
@@ -247,11 +290,35 @@ export default function AuthPage() {
           </motion.div>
 
           <motion.div
+            ref={formRef}
             initial={{ opacity: 0, y: 32 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
           >
-            <AuthCard />
+            {user ? (
+              <div className="glass-strong rounded-2xl p-8 text-center shadow-glass">
+                <div
+                  className="mx-auto flex h-16 w-16 items-center justify-center rounded-full p-[2px]"
+                  style={{ background: 'conic-gradient(from 180deg, #00f0ff, #0088ff, #a855f7, #00f0ff)' }}
+                >
+                  <span className="flex h-full w-full items-center justify-center rounded-full bg-[#0d0d16] text-2xl">
+                    {user.avatar || '👤'}
+                  </span>
+                </div>
+                <h2 className="mt-4 text-lg font-semibold text-slate-100">
+                  你好，{user.nickname || user.email}
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">欢迎回到你的云端代码实验室</p>
+                <button
+                  onClick={() => navigate('/project')}
+                  className="mt-7 h-12 w-full rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 text-base font-semibold text-white shadow-neon-cyan transition hover:shadow-neon-cyan-lg"
+                >
+                  进入工作区 →
+                </button>
+              </div>
+            ) : (
+              <AuthCard />
+            )}
           </motion.div>
         </section>
 

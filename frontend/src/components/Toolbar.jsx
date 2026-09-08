@@ -5,7 +5,7 @@ import { useProjectStore, selectCurrentFile } from '../store/projectStore';
 import { useEditorStore } from '../store/editorStore';
 import { useUiStore } from '../store/uiStore';
 import { toast } from '../store/toastStore';
-import { languageFromName } from '../utils/language';
+import { runLanguageFromName } from '../utils/language';
 
 // ── 项目 Python 环境选择器（下拉） ──
 function EnvSelector({ onOpenEnvironments }) {
@@ -99,15 +99,17 @@ function EnvSelector({ onOpenEnvironments }) {
   );
 }
 
-export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenProfile, onOpenEnvironments }) {
+export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenEnvironments }) {
   const user = useAuthStore((s) => s.user);
   const file = useProjectStore(selectCurrentFile);
   const fontSize = useEditorStore((s) => s.fontSize);
   const setFontSize = useEditorStore((s) => s.setFontSize);
   const running = useUiStore((s) => s.running);
   const runCode = useUiStore((s) => s.runCode);
+  const setProfileOpen = useUiStore((s) => s.setProfileOpen);
 
-  const canRun = Boolean(file) && Boolean(languageFromName(file?.name)) && !running;
+  // 仅 cpp / python 可运行（.c/.txt 只读预览）
+  const canRun = Boolean(file) && Boolean(runLanguageFromName(file?.name)) && !running;
 
   const handleLogout = () => {
     useAuthStore.getState().clearAuth();
@@ -203,7 +205,7 @@ export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenPr
 
       {/* 个人设置齿轮 */}
       <button
-        onClick={onOpenProfile}
+        onClick={() => setProfileOpen(true)}
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-lg text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
         aria-label="个人设置"
         title="个人设置"
