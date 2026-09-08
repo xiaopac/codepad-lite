@@ -8,10 +8,14 @@ import { cppWikiData } from './wikiData/cppWikiData';
 import { pythonWikiData } from './wikiData/pythonWikiData';
 import { cWikiData } from './wikiData/cWikiData';
 
-const POS_KEY = 'codepad-wiki-pos';
-const SAFE_X = 8;                    // 边缘留白
-const SAFE_TOP = 8;
-const SAFE_BOTTOM = 8;
+const POS_KEY = 'codepad-wiki-pos';      // { x, y, w, h }
+const RATIO_KEY = 'codepad-wiki-ratio';  // 0~1 目录占比
+const MIN_W = 280;                       // 最小窗口宽
+const MIN_H = 260;                       // 最小窗口高
+const SPLIT_W = 560;                     // 宽度 ≥ 该值时目录/内容自动左右分栏
+const MIN_RATIO = 0.25;
+const MAX_RATIO = 0.72;
+const SAFE = 8;
 
 // 语言标签：C++ 已上线；Python / C 预留
 const TABS = [
@@ -20,53 +24,87 @@ const TABS = [
   { id: 'c', label: 'C', enabled: false, data: cWikiData },
 ];
 
-// 面板尺寸：iPad 横屏 320pt / 竖屏 280pt；高度 85% 视口
-function panelSize() {
-  const w = typeof window !== 'undefined' && window.matchMedia('(orientation: landscape)').matches ? 320 : 280;
-  const h = typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.85) : 520;
-  return { w, h };
+const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+
+function viewport() {
+  return { vw: window.innerWidth, vh: window.innerHeight };
 }
 
-function loadSavedPos() {
-  try {
-    const p = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
-    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) return { x: p.x, y: p.y };
-  } catch { /* 损坏的存储数据忽略 */ }
-  return null;
-}
-
-// 钳制到可视区（考虑安全区），防止拖出屏幕或换向时丢失
-function clampPos(p) {
-  const { w, h } = panelSize();
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const maxX = Math.max(SAFE_X, vw - w - SAFE_X);
-  const maxY = Math.max(SAFE_TOP, vh - h - SAFE_BOTTOM);
+function defaultState() {
+  const { vw, vh } = viewport();
+  const landscape = window.matchMedia('(orientation: landscape)').matches;
   return {
-    x: Math.min(Math.max(p.x, SAFE_X), maxX),
-    y: Math.min(Math.max(p.y, SAFE_TOP), maxY),
+    x: 12,
+    y: Math.round(vh * 0.075),
+    w: clamp(landscape ? 320 : 280, MIN_W, vw - SAFE * 2),
+    h: clamp(Math.round(vh * 0.85), MIN_H, vh - SAFE * 2),
   };
 }
 
-function defaultPos() {
-  return { x: 12, y: Math.round(window.innerHeight * 0.075) };
+function loadState() {
+  const d = defaultState();
+  try {
+    const p = JSON.parse(localStorage.getItem(POS_KEY) || 'null');
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.w) && Number.isFinite(p.h)) {
+      const { vw, vh } = viewport();
+      const w = clamp(p.w, MIN_W, vw - SAFE * 2);
+      const h = clamp(p.h, MIN_H, vh - SAFE * 2);
+      return {
+        x: clamp(p.x, SAFE, Math.max(SAFE, vw - w - SAFE)),
+        y: clamp(p.y, SAFE, Math.max(SAFE, vh - h - SAFE)),
+        w,
+        h,
+      };
+    }
+  } catch { /* 损坏的存储忽略 */ }
+  return d;
 }
 
-// ── 可拖拽面板（每次打开重新挂载，从保存的位置滑入）──
-function WikiPanel({ onClose }) {
-  const constraintsRef = useRef(null);
-  const panelRef = useRef(null);
-  const { w } = panelSize();
+function loadRatio() {
+  try {
+    const r = Number(localStorage.getItem(RATIO_KEY));
+    if (Number.isFinite(r) && r >= MIN_RATIO && r <= MAX_RATIO) return r;
+  } catch { /* 忽略 */ }
+  return 0.45;
+}
 
-  const saved = useMemo(() => clampPos(loadSavedPos() || defaultPos()), []);
-  const x = useMotionValue(-w - 60); // 从屏幕左侧外滑入
+// ── 可拖拽、可缩放的自由窗口（每次打开重新挂载，恢复上次位置/大小/分割比例）──
+function WikiPanel({ onClose }) {
+  const panelRef = useRef(null);
+  const mainRef = useRef(null);
+
+  const saved = useMemo(loadState, []);
+  const savedRatio = useMemo(loadRatio, []);
+
+  const x = useMotionValue(-saved.w - 60);
   const y = useMotionValue(saved.y);
+  const [size, setSize] = useState({ w: saved.w, h: saved.h });
+  const [ratio, setRatio] = useState(savedRatio);
+  const ratioRef = useRef(ratio);
+  ratioRef.current = ratio;
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  // 视口尺寸变化时重建数值型拖拽约束（不用 ref 测量，避免约束错位导致拖不动）
+  const [vp, setVp] = useState(() => ({ vw: window.innerWidth, vh: window.innerHeight }));
 
   const [tab, setTab] = useState('cpp');
   const [activeId, setActiveId] = useState('intro');
   const current = TABS.find((t) => t.id === tab);
 
-  // 入场：滑到记忆位置
+  const split = size.w >= SPLIT_W; // 宽窗口 → 目录左 / 内容右；窄窗口 → 上下结构
+
+  // 数值型拖拽边界：面板始终完整落在可视区内
+  const dragConstraints = useMemo(
+    () => ({
+      left: 0,
+      top: 0,
+      right: Math.max(0, vp.vw - size.w),
+      bottom: Math.max(0, vp.vh - size.h),
+    }),
+    [vp.vw, vp.vh, size.w, size.h],
+  );
+
+  // 入场：从左侧滑入到记忆位置
   useEffect(() => {
     const controls = animate(x, saved.x, { type: 'spring', stiffness: 300, damping: 30 });
     return () => controls.stop();
@@ -79,14 +117,42 @@ function WikiPanel({ onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // 视口变化（旋转 iPad 等）：把面板拉回可视区
+  // 持久化：位置 + 大小 + 分割比例
+  const persist = () => {
+    const r = panelRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const { vw, vh } = viewport();
+    const w = clamp(r.width, MIN_W, vw - SAFE * 2);
+    const h = clamp(r.height, MIN_H, vh - SAFE * 2);
+    const st = {
+      x: clamp(r.left, SAFE, Math.max(SAFE, vw - w - SAFE)),
+      y: clamp(r.top, SAFE, Math.max(SAFE, vh - h - SAFE)),
+      w,
+      h,
+    };
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify(st));
+      localStorage.setItem(RATIO_KEY, String(clamp(ratioRef.current, MIN_RATIO, MAX_RATIO)));
+    } catch { /* 隐私模式等忽略 */ }
+    return st;
+  };
+
+  // 视口变化（旋转 iPad / 键盘弹出）：更新约束 + 拉回可视区并收缩到合法尺寸
   useEffect(() => {
     const onResize = () => {
+      setVp({ vw: window.innerWidth, vh: window.innerHeight });
       const r = panelRef.current?.getBoundingClientRect();
-      if (!r) return;
-      const c = clampPos({ x: r.left, y: r.top });
-      animate(x, c.x, { duration: 0.22, ease: 'easeOut' });
-      animate(y, c.y, { duration: 0.22, ease: 'easeOut' });
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      if (r) {
+        const w = clamp(r.width, MIN_W, vw - SAFE * 2);
+        const h = clamp(r.height, MIN_H, vh - SAFE * 2);
+        if (w !== r.width || h !== r.height) setSize({ w, h });
+        const nx = clamp(r.left, SAFE, Math.max(SAFE, vw - w - SAFE));
+        const ny = clamp(r.top, SAFE, Math.max(SAFE, vh - h - SAFE));
+        animate(x, nx, { duration: 0.22, ease: 'easeOut' });
+        animate(y, ny, { duration: 0.22, ease: 'easeOut' });
+      }
     };
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
@@ -96,16 +162,70 @@ function WikiPanel({ onClose }) {
     };
   }, [x, y]);
 
-  // 拖拽结束：钳制 + 吸附 + 写入 localStorage（下次打开恢复）
+  // 拖拽结束：钳制 + 吸附 + 记忆
   const handleDragEnd = () => {
-    const r = panelRef.current?.getBoundingClientRect();
-    if (!r) return;
-    const c = clampPos({ x: r.left, y: r.top });
-    try {
-      localStorage.setItem(POS_KEY, JSON.stringify(c));
-    } catch { /* 隐私模式等写入失败忽略 */ }
-    animate(x, c.x, { type: 'spring', stiffness: 420, damping: 34 });
-    animate(y, c.y, { type: 'spring', stiffness: 420, damping: 34 });
+    const st = persist();
+    if (!st) return;
+    animate(x, st.x, { type: 'spring', stiffness: 420, damping: 34 });
+    animate(y, st.y, { type: 'spring', stiffness: 420, damping: 34 });
+  };
+
+  // 右下角缩放把手：自由调整窗口大小
+  const startResize = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = sizeRef.current.w;
+    const startH = sizeRef.current.h;
+    const move = (ev) => {
+      const { vw, vh } = viewport();
+      setSize({
+        w: clamp(startW + ev.clientX - startX, MIN_W, vw - SAFE * 2),
+        h: clamp(startH + ev.clientY - startY, MIN_H, vh - SAFE * 2),
+      });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      const st = persist();
+      if (st) {
+        animate(x, st.x, { duration: 0.2, ease: 'easeOut' });
+        animate(y, st.y, { duration: 0.2, ease: 'easeOut' });
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+
+  // 目录/内容分割条：拖动调整占比（上下模式调高度，左右模式调宽度）
+  const startDivider = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startAxis = split ? e.clientX : e.clientY;
+    const startRatio = ratioRef.current;
+    const move = (ev) => {
+      const rect = mainRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const cur = split ? ev.clientX : ev.clientY;
+      const total = split ? rect.width : rect.height;
+      if (total <= 0) return;
+      const next = clamp(startRatio + (cur - startAxis) / total, MIN_RATIO, MAX_RATIO);
+      setRatio(next);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      try {
+        localStorage.setItem(RATIO_KEY, String(clamp(ratioRef.current, MIN_RATIO, MAX_RATIO)));
+      } catch { /* 忽略 */ }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   const switchTab = (id) => {
@@ -116,8 +236,12 @@ function WikiPanel({ onClose }) {
     }
   };
 
+  const dividerCls = split
+    ? 'cursor-col-resize border-x border-white/10 hover:border-cyan-400/40'
+    : 'cursor-row-resize border-y border-white/10 hover:border-cyan-400/40';
+
   return (
-    <div ref={constraintsRef} className="fixed inset-0 z-[95]">
+    <div className="fixed inset-0 z-[95]">
       {/* 背景遮罩：点击关闭 */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -128,24 +252,27 @@ function WikiPanel({ onClose }) {
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
       />
 
-      {/* 可拖拽面板：dragMomentum 关闭防惯性；约束在遮罩（视口）内 */}
+      {/* 自由窗口：原生拖拽（数值约束，方向全向）+ 右下角缩放，位置/大小记忆 */}
       <motion.div
         ref={panelRef}
         drag
-        dragConstraints={constraintsRef}
+        dragConstraints={dragConstraints}
         dragMomentum={false}
-        dragElastic={0.08}
+        dragElastic={0.05}
         onDragEnd={handleDragEnd}
-        style={{ x, y, height: '85dvh', touchAction: 'none' }}
+        style={{ x, y, width: size.w, height: size.h }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.16 }}
         onClick={(e) => e.stopPropagation()}
-        className="absolute left-0 top-0 flex w-[280px] flex-col overflow-hidden rounded-r-2xl border-r border-cyan-400/40 bg-[rgba(10,10,15,0.92)] p-4 shadow-[0_0_44px_rgba(0,240,255,0.16)] backdrop-blur-xl landscape:w-[320px]"
+        className="absolute left-0 top-0 flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[rgba(10,10,15,0.92)] p-4 shadow-[0_0_44px_rgba(0,240,255,0.16)] backdrop-blur-xl"
       >
-        {/* 标题区（可拖拽） */}
-        <div className="flex shrink-0 items-center gap-2">
+        {/* 标题区（抓取柄） */}
+        <div
+          className="flex shrink-0 cursor-grab items-center gap-2 active:cursor-grabbing"
+          title="按住拖动窗口"
+        >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10 text-base shadow-[0_0_10px_rgba(0,240,255,0.25)]">
             📚
           </span>
@@ -161,19 +288,22 @@ function WikiPanel({ onClose }) {
           </button>
         </div>
         <p className="mt-1.5 shrink-0 pl-1 text-[10px] leading-relaxed text-slate-600">
-          ⠿ 拖动标题 / 空白处可移动面板，位置自动记忆
+          ⠿ 按住标题 / 空白处拖动窗口 · 右下角 ⤡ 调整大小 · 中间分割条调整目录占比
         </p>
 
-        {/* 语言标签（可拖拽） */}
+        {/* 语言标签 */}
         <div className="mt-2 shrink-0">
           <WikiTabs tabs={TABS} active={tab} onChange={switchTab} />
         </div>
 
-        {/* 上部 45% 目录 + 下部 55% 内容（各自独立滚动） */}
-        <div className="mt-2 flex min-h-0 flex-1 flex-col">
+        {/* 主体：宽窗口左右分栏，窄窗口上下分栏；分割条可拖 */}
+        <div ref={mainRef} className={`mt-2 flex min-h-0 flex-1 ${split ? 'flex-row' : 'flex-col'}`}>
           {current?.enabled ? (
             <>
-              <div className="flex h-[45%] min-h-[132px] shrink-0 flex-col">
+              <div
+                className={`flex min-h-0 min-w-0 flex-col ${split ? '' : ''}`}
+                style={split ? { flex: `0 0 ${Math.round(ratio * 100)}%` } : { flex: `0 0 ${Math.round(ratio * 100)}%` }}
+              >
                 <p className="shrink-0 px-2 pb-1 text-[10px] uppercase tracking-widest text-slate-500">
                   目录
                 </p>
@@ -183,8 +313,25 @@ function WikiPanel({ onClose }) {
                   onSelect={setActiveId}
                 />
               </div>
-              <div className="mx-2 my-1.5 h-px shrink-0 bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent" />
-              <div className="flex min-h-0 flex-1 flex-col">
+
+              {/* 分割条 */}
+              <div
+                data-nodrag
+                onPointerDown={startDivider}
+                className={`${dividerCls} group flex shrink-0 items-center justify-center ${
+                  split ? 'mx-1 w-2.5 flex-col' : 'my-1 h-2.5 flex-row'
+                }`}
+                title="拖动调整目录与内容比例"
+              >
+                <span
+                  className={`rounded-full bg-slate-600 transition group-hover:bg-cyan-400 ${
+                    split ? 'h-6 w-0.5' : 'h-0.5 w-6'
+                  }`}
+                  style={{ boxShadow: '0 0 6px rgba(0,240,255,0.4)' }}
+                />
+              </div>
+
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <p className="shrink-0 px-2 pb-1 text-[10px] uppercase tracking-widest text-slate-500">
                   内容
                 </p>
@@ -198,6 +345,19 @@ function WikiPanel({ onClose }) {
               <p className="text-xs text-slate-500">敬请期待，当前可先学习 C++ 教程</p>
             </div>
           )}
+        </div>
+
+        {/* 右下角缩放把手 */}
+        <div
+          data-nodrag
+          onPointerDown={startResize}
+          className="absolute bottom-0 right-0 z-10 flex h-7 w-7 cursor-nwse-resize items-end justify-end p-1 text-slate-500 transition hover:text-cyan-300"
+          title="拖动调整窗口大小"
+          style={{ touchAction: 'none' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M14 2v8M14 10L6 10M14 10l-4-4M14 14V6M14 6l-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
         </div>
       </motion.div>
     </div>
