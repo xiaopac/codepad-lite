@@ -211,8 +211,8 @@ export default function App() {
 
           <ToastContainer />
 
-          {/* 站内 Wiki 书签：左下角图标（全站可用）＋ 可拖拽侧边栏 */}
-          <WikiButton open={wikiOpen} onClick={() => setWikiOpen((v) => !v)} />
+          {/* 站内 Wiki 书签：可拖拽图标（全站可用）＋ 可拖拽/缩放的自由窗口 */}
+          <WikiButton open={wikiOpen} onTap={() => setWikiOpen((v) => !v)} />
           <Suspense fallback={null}>
             <WikiSidebar open={wikiOpen} onClose={() => setWikiOpen(false)} />
           </Suspense>

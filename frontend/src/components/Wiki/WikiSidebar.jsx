@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, animate, motion, useDragControls, useMotionValue } from 'framer-motion';
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useDragControls,
+  useMotionValue,
+  useMotionValueEvent,
+} from 'framer-motion';
 import WikiTabs from './WikiTabs';
 import WikiDirectory from './WikiDirectory';
 import WikiContent from './WikiContent';
@@ -79,6 +86,9 @@ function WikiPanel({ onClose }) {
 
   const x = useMotionValue(-saved.w - 60);
   const y = useMotionValue(saved.y);
+  // 宽高用 motion value 驱动：拖拽缩放即时跟手（w.set），预设切换弹簧过渡（animate）
+  const w = useMotionValue(saved.w);
+  const h = useMotionValue(saved.h);
   const [size, setSize] = useState({ w: saved.w, h: saved.h });
   const [ratio, setRatio] = useState(savedRatio);
   const ratioRef = useRef(ratio);
@@ -87,6 +97,10 @@ function WikiPanel({ onClose }) {
   sizeRef.current = size;
   // 视口尺寸变化时重建数值型拖拽约束（不用 ref 测量，避免约束错位导致拖不动）
   const [vp, setVp] = useState(() => ({ vw: window.innerWidth, vh: window.innerHeight }));
+
+  // 宽高变化同步到 React 状态（驱动 分栏布局切换 / 拖拽约束）
+  useMotionValueEvent(w, 'change', (v) => setSize((s) => ({ ...s, w: v })));
+  useMotionValueEvent(h, 'change', (v) => setSize((s) => ({ ...s, h: v })));
 
   const [tab, setTab] = useState('cpp');
   const [activeId, setActiveId] = useState('intro');
@@ -146,11 +160,14 @@ function WikiPanel({ onClose }) {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       if (r) {
-        const w = clamp(r.width, MIN_W, vw - SAFE * 2);
-        const h = clamp(r.height, MIN_H, vh - SAFE * 2);
-        if (w !== r.width || h !== r.height) setSize({ w, h });
-        const nx = clamp(r.left, SAFE, Math.max(SAFE, vw - w - SAFE));
-        const ny = clamp(r.top, SAFE, Math.max(SAFE, vh - h - SAFE));
+        const nw = clamp(r.width, MIN_W, vw - SAFE * 2);
+        const nh = clamp(r.height, MIN_H, vh - SAFE * 2);
+        if (nw !== r.width || nh !== r.height) {
+          w.set(nw);
+          h.set(nh);
+        }
+        const nx = clamp(r.left, SAFE, Math.max(SAFE, vw - nw - SAFE));
+        const ny = clamp(r.top, SAFE, Math.max(SAFE, vh - nh - SAFE));
         animate(x, nx, { duration: 0.22, ease: 'easeOut' });
         animate(y, ny, { duration: 0.22, ease: 'easeOut' });
       }
@@ -200,7 +217,8 @@ function WikiPanel({ onClose }) {
       const maxH = Math.max(MIN_H, vh - SAFE - y.get());
       latest.w = clamp(startW + ev.clientX - startX, MIN_W, maxW);
       latest.h = clamp(startH + ev.clientY - startY, MIN_H, maxH);
-      setSize({ w: latest.w, h: latest.h });
+      w.set(latest.w); // 即时跟手（无过渡）
+      h.set(latest.h);
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -224,7 +242,10 @@ function WikiPanel({ onClose }) {
     const maxW = Math.max(MIN_W, vw - SAFE - x.get());
     const maxH = Math.max(MIN_H, vh - SAFE - y.get());
     const next = { w: clamp(p.w, MIN_W, maxW), h: clamp(p.h, MIN_H, maxH) };
-    setSize(next);
+    // 弹簧过渡动画（窗口位置不动，尺寸平滑变化，越过 560 时自动分栏/合栏）
+    const spring = { type: 'spring', stiffness: 240, damping: 28 };
+    animate(w, next.w, spring);
+    animate(h, next.h, spring);
     persist(next); // 立即按目标尺寸保存，窗口位置不变
   };
 
@@ -291,13 +312,13 @@ function WikiPanel({ onClose }) {
         dragMomentum={false}
         dragElastic={0.05}
         onDragEnd={handleDragEnd}
-        style={{ x, y, width: size.w, height: size.h }}
+        style={{ x, y, width: w, height: h }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.16 }}
         onClick={(e) => e.stopPropagation()}
-        className="absolute left-0 top-0 flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[rgba(10,10,15,0.92)] p-4 shadow-[0_0_44px_rgba(0,240,255,0.16)] backdrop-blur-xl"
+        className="absolute left-0 top-0 flex select-none flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[rgba(10,10,15,0.92)] p-4 shadow-[0_0_44px_rgba(0,240,255,0.16)] backdrop-blur-xl"
       >
         {/* 标题区（抓取柄） */}
         <div
