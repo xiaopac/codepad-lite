@@ -1,6 +1,8 @@
-// 从文件扩展名推断语言（需求：.cpp → C++，.py → Python，.c → C）
+// 从文件扩展名推断语言（需求：.cpp/.cc/.cxx → C++，.py → Python，.c → C）
 const EXT_LANGUAGE = {
   cpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
   py: 'python',
   c: 'c',
 };
@@ -11,7 +13,7 @@ function languageFromName(name) {
 }
 
 // 文件名白名单校验（同时防御路径穿越）
-const FILE_NAME_RE = /^[A-Za-z0-9_-]{1,100}\.(cpp|py|c)$/i;
+const FILE_NAME_RE = /^[A-Za-z0-9_-]{1,100}\.(cpp|cc|cxx|py|c|h)$/i;
 
 function isValidFileName(name) {
   return FILE_NAME_RE.test(String(name || '').trim());

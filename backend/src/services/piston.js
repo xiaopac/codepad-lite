@@ -3,14 +3,17 @@
 //      https://github.com/engineer-man/piston/blob/master/readme.md
 const config = require('../config');
 const HttpError = require('../utils/HttpError');
+const { LANGUAGES } = require('../constants/languages');
 
 // 项目支持的语言 -> Piston 包索引中的语言名。
 // 注意（已对本项目部署的真实 Piston 实测验证）：
 //  - C / C++ 在包索引 /api/v2/packages 中共享 "gcc" 包（版本 10.2.0）；
 //  - /api/v2/runtimes 中 C 的语言名是 "c"（别名 ["gcc"]），C++ 是 "c++"（别名 ["cpp","g++"]）；
-//  - execute 接口接受 "c" 与 "cpp"，会自动解析到对应运行时。
-const REQUIRED_LANGUAGES = ['cpp', 'python', 'c'];
-const PACKAGE_LANGUAGE = { cpp: 'gcc', python: 'python', c: 'gcc' };
+//  - execute 接口接受 "c" 与 "cpp"，会自动解析到对应运行时；
+//  - 源文件名决定编译器：main.c → gcc，main.cpp → g++（详见 constants/languages.js）。
+const REQUIRED_LANGUAGES = Object.keys(LANGUAGES);
+const PACKAGE_LANGUAGE = {};
+for (const [id, def] of Object.entries(LANGUAGES)) PACKAGE_LANGUAGE[id] = def.packageLanguage;
 
 // 运行时条目是否匹配某个项目语言（语言名 + 别名双重匹配）
 function runtimeMatches(runtime, lang) {
@@ -206,9 +209,7 @@ async function execute(language, code, stdin, preferredVersion) {
   const payload = {
     language,
     version,
-    files: [
-      { name: language === 'c' ? 'main.c' : language === 'cpp' ? 'main.cpp' : 'main.py', content: code },
-    ],
+    files: [{ name: LANGUAGES[language]?.sourceName || 'main.txt', content: code }],
     stdin,
     compile_timeout: config.COMPILE_TIMEOUT_MS, // 需求锁定：超时 10 秒
     run_timeout: config.RUN_TIMEOUT_MS,

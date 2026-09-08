@@ -5,13 +5,8 @@ import { useStorageStore } from '../store/storageStore';
 import { useMediaStore } from '../store/mediaStore';
 import { api } from '../api/client';
 import { isValidFileName, isTextFileName } from '../utils/language';
+import LangBadge from './LangBadge';
 import { toast } from '../store/toastStore';
-
-const LANG_DOT = {
-  cpp: 'bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]',
-  c: 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]',
-  python: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]',
-};
 
 export default function FileSidebar({ onFileAction }) {
   const project = useProjectStore((s) => s.currentProject);
@@ -60,7 +55,7 @@ export default function FileSidebar({ onFileAction }) {
     e.preventDefault();
     const name = newName.trim();
     if (!isTextFileName(name)) {
-      setFormError('文本文件支持 .cpp / .py / .c / .txt（媒体文件请用上传）');
+      setFormError('文本文件支持 .c / .cc / .cxx / .cpp / .py / .txt / .h（媒体文件请用上传）');
       return;
     }
     setFormError('');
@@ -95,6 +90,8 @@ export default function FileSidebar({ onFileAction }) {
           body: { name: file.name, data: String(reader.result) },
         });
         appendFile(data.file);
+        // 文本文件（.c/.cpp/.py 等）上传后直接打开编辑；媒体文件由用户点击预览
+        if (data.file.kind === 'text') openFile(data.file);
         toast.success(`已上传 ${file.name}`);
         onFileAction?.();
       } catch (err) {
@@ -180,20 +177,20 @@ export default function FileSidebar({ onFileAction }) {
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          {/* 上传文件（图片/音视频）：iPad 弹出 照片图库/拍照/文件 App 选择 */}
+          {/* 上传文件（文本/图片/音视频）：iPad 弹出 照片图库/拍照/文件 App 选择 */}
           <button
             onClick={() => uploadRef.current?.click()}
             disabled={uploading}
             className="flex h-10 items-center gap-1 rounded-lg bg-white/5 px-2.5 text-sm text-slate-300 transition hover:bg-white/10 hover:text-cyan-200 disabled:opacity-50"
             aria-label="上传文件"
-            title="上传图片 / 音视频"
+            title="上传 .c/.cpp/.py 文本或图片 / 音视频"
           >
             {uploading ? '⏳' : '⬆'}
           </button>
           <input
             ref={uploadRef}
             type="file"
-            accept="image/*,audio/*,video/*"
+            accept="image/*,audio/*,video/*,.c,.cc,.cxx,.cpp,.h,.py,.txt"
             className="hidden"
             onChange={onPickFile}
           />
@@ -311,11 +308,7 @@ export default function FileSidebar({ onFileAction }) {
                             {f.kind === 'image' ? '🖼' : f.kind === 'audio' ? '🎵' : '🎬'}
                           </span>
                         ) : (
-                          <span
-                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                              LANG_DOT[f.language] || 'bg-slate-500'
-                            }`}
-                          />
+                          <LangBadge language={f.language} />
                         )}
                         <span
                           className={`truncate text-sm ${
@@ -385,7 +378,7 @@ export default function FileSidebar({ onFileAction }) {
           </div>
         )}
         <p className="text-[10px] leading-relaxed text-slate-600">
-          支持 C（.c）、C++（.cpp）与 Python（.py）
+          支持 C（.c）、C++（.cpp/.cc/.cxx）与 Python（.py）
           <br />
           内容自动保存
         </p>

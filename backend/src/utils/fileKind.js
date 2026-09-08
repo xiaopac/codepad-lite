@@ -2,9 +2,12 @@
 // kind: 'text'（代码/文本，Monaco 编辑）| 'image' | 'audio' | 'video'（二进制，预览播放）
 const TEXT_KINDS = {
   cpp: { language: 'cpp', mime: 'text/plain' },
+  cc: { language: 'cpp', mime: 'text/plain' },   // C++ 别名扩展
+  cxx: { language: 'cpp', mime: 'text/plain' },  // C++ 别名扩展
   py: { language: 'python', mime: 'text/plain' },
   c: { language: 'c', mime: 'text/plain' },
   txt: { language: 'plaintext', mime: 'text/plain' },
+  h: { language: 'plaintext', mime: 'text/plain' }, // 头文件只读预览（不运行）
 };
 const IMAGE_KINDS = {
   png: 'image/png',

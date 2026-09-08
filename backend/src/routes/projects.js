@@ -159,7 +159,7 @@ router.post(
 
     const c = classifyFileName(name);
     if (!c || c.kind !== 'text') {
-      throw new HttpError(400, '文本文件仅支持 .cpp / .py / .c / .txt；媒体文件请用「上传文件」');
+      throw new HttpError(400, '文本文件仅支持 .c / .cc / .cxx / .cpp / .py / .txt / .h；媒体文件请用「上传文件」');
     }
     if (content.length > MAX_FILE_CONTENT) {
       throw new HttpError(413, `文件内容过大（最大 ${MAX_FILE_CONTENT / 1000}KB）`);
@@ -186,7 +186,9 @@ router.post(
   },
 );
 
-// POST /api/projects/:id/upload  { name, data } -> { file }（二进制媒体上传）
+// POST /api/projects/:id/upload  { name, data } -> { file }
+// 媒体（图片/音视频）：魔数嗅探后二进制入库；
+// 文本（.c/.cpp/.py/.txt 等）：解码 UTF-8 入库，可在编辑器中直接打开编辑（需求：上传 .c 视为文本）。
 router.post('/:id/upload', (req, res) => {
   const projectId = toProjectId(req.params.id);
   const project = getOwnedProject(req.user.id, projectId);
@@ -194,10 +196,7 @@ router.post('/:id/upload', (req, res) => {
 
   const c = classifyFileName(name);
   if (!c) {
-    throw new HttpError(400, '仅支持图片（png/jpg/gif/webp）、音频（mp3/wav/m4a/ogg）、视频（mp4/webm/mov）');
-  }
-  if (c.kind === 'text') {
-    throw new HttpError(400, '文本文件请使用「创建文件」');
+    throw new HttpError(400, '仅支持文本（.c/.cpp/.py/.txt 等）与图片/音频/视频');
   }
 
   const dataUrl = String(req.body?.data ?? '');
@@ -210,13 +209,41 @@ router.post('/:id/upload', (req, res) => {
     throw new HttpError(413, `文件大小需在 ${Math.round(config.MAX_UPLOAD_BYTES / 1048576)}MB 以内`);
   }
 
-  // 魔数嗅探：真实类型必须与扩展名匹配
+  assertQuota(req.user.id, buf.length); // 配额校验
+
+  let row;
+  if (c.kind === 'text') {
+    // ── 文本分支：UTF-8 解码后按文本文件存储 ──
+    const text = buf.toString('utf8');
+    if (text.includes('\uFFFD')) {
+      throw new HttpError(400, '文本文件编码不受支持（仅 UTF-8）');
+    }
+    if (text.length > MAX_FILE_CONTENT) {
+      throw new HttpError(413, `文件内容过大（最大 ${MAX_FILE_CONTENT / 1000}KB）`);
+    }
+    const rel = fileStore.relFilePath(req.user.id, project.id, name);
+    fileStore.writeFile(req.user.id, project.id, name, text);
+    let info;
+    try {
+      info = db
+        .prepare(
+          'INSERT INTO files (project_id, name, file_path, language, mime_type) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(project.id, name, rel, c.language, c.mime_type);
+    } catch (err) {
+      fileStore.deleteFileOnDisk(req.user.id, project.id, name);
+      throw err;
+    }
+    row = db.prepare('SELECT id, name, language, mime_type FROM files WHERE id = ?').get(info.lastInsertRowid);
+    touchProject(project.id);
+    return res.status(201).json({ file: toFilePublic(req.user.id, project, row) });
+  }
+
+  // ── 媒体分支：魔数嗅探，真实类型必须与扩展名匹配 ──
   const sniffed = sniffMime(buf);
   if (!sniffed || !sniffMatchesExt(sniffed, c.ext)) {
     throw new HttpError(400, '文件内容与扩展名不符，已拒绝');
   }
-
-  assertQuota(req.user.id, buf.length); // 配额校验
 
   const rel = fileStore.relFilePath(req.user.id, project.id, name);
   fileStore.writeFileRaw(req.user.id, project.id, name, buf);
@@ -231,7 +258,7 @@ router.post('/:id/upload', (req, res) => {
     fileStore.deleteFileOnDisk(req.user.id, project.id, name);
     throw err;
   }
-  const row = db.prepare('SELECT id, name, language, mime_type FROM files WHERE id = ?').get(info.lastInsertRowid);
+  row = db.prepare('SELECT id, name, language, mime_type FROM files WHERE id = ?').get(info.lastInsertRowid);
   touchProject(project.id);
   res.status(201).json({ file: toFilePublic(req.user.id, project, row, false) });
 });

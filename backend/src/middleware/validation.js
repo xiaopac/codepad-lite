@@ -8,8 +8,8 @@ const PASSWORD_MSG = '密码至少 8 位，且需包含大写字母、小写字�
 
 // 项目名：字母/数字/下划线/中文/空格/点/短横线
 const PROJECT_NAME_RE = /^[A-Za-z0-9_\u4e00-\u9fa5 .-]{1,50}$/;
-// 文件名：白名单 + 扩展名，天然防 ../ 路径穿越（.c 为 C 语言）
-const FILE_NAME_RE = /^[A-Za-z0-9_-]{1,100}\.(cpp|py|c)$/i;
+// 文件名：白名单 + 扩展名，天然防 ../ 路径穿越（.c 为 C 语言；.cc/.cxx 为 C++ 别名；.h 只读）
+const FILE_NAME_RE = /^[A-Za-z0-9_-]{1,100}\.(cpp|cc|cxx|py|c|h)$/i;
 // 第三方库名（支持版本限定：numpy、numpy==1.24.2、requests>=2.28,<3 等），防 pip 参数注入
 const PKG_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*(==|>=|<=|!=|~=|===|>|<)?[A-Za-z0-9._*+!-]*$/;
 

@@ -1,10 +1,14 @@
 // 文件分类（与后端 utils/fileKind.js 保持一致）：
 // 文本（Monaco 编辑）、图片、音频、视频
+// .cc/.cxx 是 C++ 别名扩展；.h 头文件按纯文本只读预览
 const TEXT_KINDS = {
   cpp: 'cpp',
+  cc: 'cpp',
+  cxx: 'cpp',
   py: 'python',
   c: 'c',
   txt: 'plaintext',
+  h: 'plaintext',
 };
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'm4a', 'ogg']);

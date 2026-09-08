@@ -7,6 +7,7 @@ const { VERSION_MAP } = require('../services/envBuilder');
 const { validate } = require('../middleware/validation');
 const { executeLimiter } = require('../utils/rateLimiter');
 const { logger } = require('../utils/logger');
+const { RUNNABLE_IDS } = require('../constants/languages');
 const db = require('../db');
 
 const router = express.Router();
@@ -64,13 +65,14 @@ function logExecution(userId, language, codeLength, status, result) {
   }
 }
 
-// POST /api/execute  { language: "cpp"|"python"|"c", code, stdin, environment_id? }
+// POST /api/execute  { language: "c"|"cpp"|"python", code, stdin, environment_id? }
 // -> { stdout, stderr, compile_error, execution_time, exit_code }（需鉴权）
+const LANG_MSG = `仅支持 ${RUNNABLE_IDS.join(' / ')} 三种语言`;
 router.post(
   '/',
   executeLimiter, // 每用户每分钟 10 次（需求 1.6）
   validate([
-    body('language').isIn(['cpp', 'python', 'c']).withMessage('仅支持 cpp / python / c 三种语言'),
+    body('language').isIn(RUNNABLE_IDS).withMessage(LANG_MSG),
     body('code').isString().withMessage('code 必须是字符串'),
     body('stdin').optional().isString().withMessage('stdin 必须是字符串'),
     body('environment_id').optional().isInt({ min: 1 }).withMessage('environment_id 不合法'),
@@ -78,8 +80,8 @@ router.post(
   async (req, res) => {
   const { language, code, stdin, environment_id } = req.body ?? {};
 
-  if (language !== 'cpp' && language !== 'python' && language !== 'c') {
-    throw new HttpError(400, '仅支持 cpp / python / c 三种语言');
+  if (!RUNNABLE_IDS.includes(language)) {
+    throw new HttpError(400, LANG_MSG);
   }
   if (typeof code !== 'string') {
     throw new HttpError(400, 'code 必须是字符串');

@@ -10,12 +10,7 @@ import { useBackgroundStore } from '../store/backgroundStore';
 import { useMediaStore } from '../store/mediaStore';
 import { toast } from '../store/toastStore';
 import { monacoLanguageFromName } from '../utils/language';
-
-const LANG_DOT = {
-  cpp: 'bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)]',
-  c: 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]',
-  python: 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]',
-};
+import LangBadge from './LangBadge';
 
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
@@ -206,7 +201,7 @@ function Slider({ label, value, min, max, suffix, onChange }) {
 }
 
 export default function EditorPane() {
-  // 模块一：注册 C++ / Python 自定义补全与签名提示
+  // 模块一：注册 C / C++ / Python 自定义补全与签名提示（C 与 C++ 补全集严格区分）
   useMonacoAutocomplete();
 
   const file = useProjectStore(selectCurrentFile);
@@ -284,7 +279,7 @@ export default function EditorPane() {
                   {isMedia ? (
                     <span className="text-xs">{f.kind === 'image' ? '🖼' : f.kind === 'audio' ? '🎵' : '🎬'}</span>
                   ) : (
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${LANG_DOT[f.language] || 'bg-slate-500'}`} />
+                    <LangBadge language={f.language} />
                   )}
                   <span className="max-w-[140px] truncate">{f.name}</span>
                 </button>

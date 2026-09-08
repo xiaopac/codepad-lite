@@ -162,7 +162,7 @@ docker compose up -d piston
 | `/api/admin/monitor` | GET | — | `{ uptime, memory, os, db, piston }` | 【管理员】系统监控快照 |
 | `/api/admin/logs` | GET | — | `{ logs }` | 【管理员】执行日志（最近 100 条） |
 
-文件名约束：`main.c` / `main.cpp` / `main.py` 形式（文本文件 `.c`/`.cpp`/`.py`/`.txt`，扩展名决定语言；图片/音视频走「上传文件」）。
+文件名约束：`main.c` / `main.cpp` / `main.py` 形式（文本文件 `.c`/`.cc`/`.cxx`/`.cpp`/`.py`/`.txt`/`.h`，扩展名决定语言；`.c` → gcc、`.cpp`/`.cc`/`.cxx` → g++；图片/音视频走「上传文件」，`.c` 等文本也可直接上传并在编辑器中打开）。
 
 ---
 
