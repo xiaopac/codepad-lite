@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -6,7 +7,7 @@ import { api } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 
 // 隐藏页 /web（仅管理员，后端双保险）：交互式终端实验室
-// 流程：POST /api/terminal/sessions 登记代码 → WebSocket 连接 → 沙箱内 PTY 真正启动
+// 布局与工作区一致：工具栏 + 代码区 + 底部可隐藏终端（点「启动」时自动弹出）
 const SAMPLE = {
   python: `# 交互式终端测试：运行后可以直接在终端里输入
 while True:
@@ -33,18 +34,27 @@ int main() {
 `,
 };
 
-const INPUT_CLS =
-  'glass h-11 w-full rounded-lg px-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400/60';
+const STATUS_META = {
+  idle: { label: '待启动', cls: 'text-slate-400' },
+  starting: { label: '启动中…', cls: 'text-cyan-300' },
+  running: { label: '运行中', cls: 'text-emerald-300' },
+  closed: { label: '已结束', cls: 'text-amber-300' },
+  error: { label: '出错', cls: 'text-rose-300' },
+};
 
 export default function TermLab({ onBack }) {
   const [language, setLanguage] = useState('python');
   const [code, setCode] = useState(SAMPLE.python);
-  const [status, setStatus] = useState('idle'); // idle | starting | running | closed | error
+  const [status, setStatus] = useState('idle');
   const [statusText, setStatusText] = useState('');
   const [busy, setBusy] = useState(false);
+  // 终端面板：默认隐藏；点「启动终端」时自动弹出；可手动折叠（折叠不中断会话）
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalHeight, setTerminalHeight] = useState(320);
 
   const termRef = useRef(null);
   const termElRef = useRef(null);
+  const panelRef = useRef(null);
   const wsRef = useRef(null);
   const fitRef = useRef(null);
 
@@ -53,9 +63,23 @@ export default function TermLab({ onBack }) {
     wsRef.current = null;
     try { termRef.current?.dispose(); } catch { /* 忽略 */ }
     termRef.current = null;
+    fitRef.current = null;
+    if (termElRef.current?._cleanupResize) {
+      window.removeEventListener('resize', termElRef.current._cleanupResize);
+      termElRef.current._cleanupResize = null;
+    }
   }, []);
 
   useEffect(() => () => cleanup(), [cleanup]);
+
+  // 终端面板展开后自适应尺寸
+  useEffect(() => {
+    if (!terminalOpen || !termRef.current) return;
+    const t = setTimeout(() => {
+      try { fitRef.current?.fit(); } catch { /* 容器未就绪 */ }
+    }, 80);
+    return () => clearTimeout(t);
+  }, [terminalOpen, terminalHeight]);
 
   const switchLanguage = (lang) => {
     if (termRef.current) return; // 运行中不允许切换
@@ -68,6 +92,7 @@ export default function TermLab({ onBack }) {
     setBusy(true);
     setStatus('starting');
     setStatusText('正在创建终端会话…');
+    setTerminalOpen(true); // 启动时自动弹出终端
     try {
       const data = await api('/api/terminal/sessions', {
         method: 'POST',
@@ -101,7 +126,7 @@ export default function TermLab({ onBack }) {
 
       ws.onopen = () => {
         setStatus('running');
-        setStatusText('终端已连接——直接在下面打字交互（输入完按回车）');
+        setStatusText('直接在终端里输入，回车发送');
         try { term.focus(); } catch { /* 忽略 */ }
       };
       ws.onmessage = (ev) => {
@@ -111,7 +136,7 @@ export default function TermLab({ onBack }) {
           if (msg.type === 'exit') {
             term.write(`\r\n\x1b[90m── 程序已退出（code=${msg.code ?? '?'}）──\x1b[0m\r\n`);
             setStatus('closed');
-            setStatusText(`程序已退出（code=${msg.code ?? '?'}）。点击「重新启动」可再次运行`);
+            setStatusText(`程序已退出（code=${msg.code ?? '?'}），可修改代码后重新启动`);
             return;
           }
           if (msg.type === 'error') {
@@ -127,7 +152,7 @@ export default function TermLab({ onBack }) {
       ws.onclose = () => {
         if (status !== 'closed' && status !== 'error') {
           setStatus('closed');
-          setStatusText('连接已断开。点击「重新启动」可再次运行');
+          setStatusText('连接已断开，可重新启动');
         }
       };
       ws.onerror = () => {
@@ -139,7 +164,6 @@ export default function TermLab({ onBack }) {
         if (ws.readyState === WebSocket.OPEN) ws.send(d);
       });
 
-      // 窗口变化自适应尺寸
       const onResize = () => {
         try { fit.fit(); } catch { /* 忽略 */ }
       };
@@ -154,109 +178,194 @@ export default function TermLab({ onBack }) {
   };
 
   const stop = () => {
-    if (termElRef.current?._cleanupResize) {
-      window.removeEventListener('resize', termElRef.current._cleanupResize);
-    }
     cleanup();
     setStatus('closed');
-    setStatusText('已停止。点击「启动终端」重新开始');
+    setStatusText('已停止，可修改代码后重新启动');
   };
 
-  const statusMeta = {
-    idle: { cls: 'text-slate-400', label: '待启动' },
-    starting: { cls: 'text-cyan-300', label: '启动中…' },
-    running: { cls: 'text-emerald-300', label: '运行中' },
-    closed: { cls: 'text-amber-300', label: '已结束' },
-    error: { cls: 'text-rose-300', label: '出错' },
-  }[status];
+  // 终端面板高度拖拽（与工作台输出面板一致的交互）
+  const startPanelResize = (e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = terminalHeight;
+    const container = panelRef.current?.parentElement;
+    const onMove = (ev) => {
+      const containerH = container?.clientHeight ?? 600;
+      const max = Math.max(200, containerH - 220);
+      const next = Math.min(max, Math.max(180, startH + (startY - ev.clientY)));
+      setTerminalHeight(Math.round(next));
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  const meta = STATUS_META[status] || STATUS_META.idle;
+  const sessionRunning = Boolean(termRef.current);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="glass-strong flex h-14 shrink-0 items-center gap-2 border-x-0 border-t-0 px-3">
+      {/* ── 工具栏（与工作区一致的风格） ── */}
+      <header className="glass-strong flex h-14 shrink-0 items-center gap-1 border-x-0 border-t-0 px-2 sm:gap-2 sm:px-3">
         <button
           onClick={onBack}
           className="flex h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-sm text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
         >
-          <span className="text-lg leading-none">←</span> 返回
+          <span className="text-lg leading-none">←</span>
+          <span className="hidden sm:inline">返回</span>
         </button>
-        <span className="neon-text-purple text-base font-semibold tracking-wider">
-          🧪 终端实验室 <span className="text-xs text-slate-500">（隐藏页 · 仅管理员）</span>
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+          <span className="neon-text shrink-0 text-base font-bold tracking-wider">⚡</span>
+          <span className="neon-text-purple truncate text-sm font-semibold">🧪 终端实验室</span>
+          <span className="hidden text-[10px] text-slate-600 sm:inline">隐藏页 · 仅管理员</span>
+        </div>
+
+        {/* 状态 */}
+        <span className={`hidden shrink-0 items-center gap-1 text-xs md:flex ${meta.cls}`}>
+          ● {meta.label}
+          {statusText ? <span className="max-w-[180px] truncate text-slate-500">· {statusText}</span> : null}
         </span>
+
+        {/* 语言切换 */}
+        <div className="glass flex shrink-0 items-center rounded-xl p-0.5">
+          {[
+            { id: 'python', label: 'Py' },
+            { id: 'cpp', label: 'C++' },
+          ].map((l) => (
+            <button
+              key={l.id}
+              onClick={() => switchLanguage(l.id)}
+              disabled={sessionRunning}
+              className={`flex h-10 min-w-[40px] items-center justify-center rounded-lg px-2 text-xs font-semibold transition disabled:opacity-40 ${
+                language === l.id
+                  ? 'bg-cyan-400/20 text-cyan-200 shadow-neon-cyan'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+              title={l.id === 'python' ? 'Python' : 'C++'}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 启动 / 停止 */}
+        {sessionRunning ? (
+          <button
+            onClick={stop}
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/25"
+          >
+            ⏹ <span className="hidden sm:inline">停止</span>
+          </button>
+        ) : (
+          <button
+            onClick={start}
+            disabled={busy}
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-500 to-cyan-400 px-3 text-sm font-semibold text-white shadow-neon-purple transition disabled:opacity-50"
+          >
+            {busy ? '…' : '▶'} <span className="hidden sm:inline">{busy ? '启动中' : '启动终端'}</span>
+          </button>
+        )}
+
+        {/* 终端面板显隐 */}
+        <button
+          onClick={() => setTerminalOpen((v) => !v)}
+          className={`relative flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-sm transition ${
+            terminalOpen
+              ? 'bg-cyan-400/15 text-cyan-200'
+              : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-cyan-200'
+          }`}
+          title={terminalOpen ? '隐藏终端面板' : '显示终端面板'}
+        >
+          🖥 <span className="hidden sm:inline">{terminalOpen ? '终端 ⌄' : '终端 ˄'}</span>
+          {!terminalOpen && sessionRunning && (
+            <span
+              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400"
+              style={{ boxShadow: '0 0 8px rgba(52,211,153,0.9)' }}
+            />
+          )}
+        </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto scroll-touch p-4">
-        <div className="mx-auto max-w-4xl space-y-3">
-          {/* 代码输入 */}
-          <div className="glass rounded-2xl p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-500">语言</span>
-              {[
-                { id: 'python', label: '🐍 Python' },
-                { id: 'cpp', label: '⚙️ C++' },
-              ].map((l) => (
-                <button
-                  key={l.id}
-                  onClick={() => switchLanguage(l.id)}
-                  disabled={Boolean(termRef.current)}
-                  className={`flex h-11 min-w-[96px] items-center justify-center rounded-lg px-3 text-sm transition disabled:opacity-40 ${
-                    language === l.id
-                      ? 'border border-cyan-400/60 bg-cyan-400/15 font-semibold text-cyan-200 shadow-neon-cyan'
-                      : 'border border-white/10 bg-white/5 text-slate-400'
-                  }`}
-                >
-                  {l.label}
-                </button>
-              ))}
-              <span className="flex-1" />
-              <span className={`text-xs ${statusMeta.cls}`}>
-                ● {statusMeta.label}
-                {statusText ? ` · ${statusText}` : ''}
+      {/* ── 主体：代码区 + 底部终端 ── */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* 代码区（类编辑器） */}
+        <main className="min-h-0 flex-1 bg-cyber-panel p-3">
+          <div className={`glass flex h-full flex-col rounded-2xl p-4 ${sessionRunning ? 'opacity-80' : ''}`}>
+            <div className="flex shrink-0 items-center justify-between pb-2">
+              <span className="text-xs tracking-wider text-slate-500">
+                {language === 'python' ? 'main.py' : 'main.cpp'}
+                {sessionRunning ? ' · 运行中（只读）' : ''}
               </span>
+              <span className="hidden text-[10px] text-slate-600 sm:inline">Ctrl/⌘ + Enter 启动</span>
             </div>
             <textarea
-              className={`${INPUT_CLS} mt-3 h-40 resize-none p-3 font-mono text-[13px] leading-relaxed ${
-                termRef.current ? 'opacity-60' : ''
-              }`}
+              className="min-h-0 w-full flex-1 resize-none rounded-xl border border-white/10 bg-[#0a0a0f] p-3 font-mono text-sm leading-relaxed text-slate-100 outline-none transition focus:border-cyan-400/60 focus:shadow-neon-cyan"
               value={code}
-              readOnly={Boolean(termRef.current)}
+              readOnly={sessionRunning}
               onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  start();
+                }
+              }}
               spellCheck={false}
             />
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={start}
-                disabled={busy || Boolean(termRef.current)}
-                className="h-12 flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-cyan-400 text-base font-semibold text-white shadow-neon-purple transition disabled:opacity-50"
-              >
-                {busy ? '启动中…' : termRef.current ? '终端运行中' : '▶ 启动终端'}
-              </button>
-              <button
-                onClick={stop}
-                disabled={!termRef.current}
-                className="h-12 shrink-0 rounded-xl border border-rose-400/40 bg-rose-500/10 px-5 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/25 disabled:opacity-40"
-              >
-                ⏹ 停止
-              </button>
-            </div>
-            <p className="mt-2 text-[10px] leading-relaxed text-slate-600">
-              ⚠️ 实验室模式：会话上限与时长受限（空闲 10 分钟回收、硬上限 30 分钟），
-              沙箱无外网、非 root。运行后直接在下方黑色终端里输入内容并按回车。
+            <p className="shrink-0 pt-2 text-[10px] leading-relaxed text-slate-600">
+              ⚠️ 实验室模式：会话上限与时长受限（空闲 10 分钟回收、硬上限 30 分钟），沙箱无外网、非 root。
+              运行后直接在底部终端里输入内容并按回车——无需预输入。
             </p>
           </div>
+        </main>
 
-          {/* 终端 */}
-          <div className="overflow-hidden rounded-2xl border border-cyan-400/30 bg-[#0a0a12] shadow-[0_0_24px_rgba(0,240,255,0.12)]">
-            <div className="flex h-9 items-center gap-1.5 border-b border-white/10 px-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" />
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
-              <span className="ml-2 text-[10px] tracking-wider text-slate-500">
-                {language === 'python' ? 'python3 -u main.py' : 'g++ main.cpp && ./main'}
-              </span>
+        {/* 底部终端面板：可隐藏、可拖高度、启动时自动弹出
+            收起时保持内容挂载（xterm 实例绑定关系不中断，再展开输出仍在） */}
+        <motion.section
+          ref={panelRef}
+          animate={{ height: terminalOpen ? terminalHeight : 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          className={`relative shrink-0 overflow-hidden ${terminalOpen ? 'glass-strong' : ''}`}
+        >
+          <div className="flex h-full flex-col">
+              <div
+                onPointerDown={startPanelResize}
+                className="flex h-1.5 w-full shrink-0 cursor-row-resize touch-none items-center justify-center bg-white/5"
+                title="拖动调整终端高度"
+                aria-hidden="true"
+              >
+                <div className="h-0.5 w-10 rounded-full bg-cyan-400/40" />
+              </div>
+
+              <div className="flex min-h-0 flex-1 flex-col">
+                {/* 终端标题栏 */}
+                <div className="flex h-10 shrink-0 items-center gap-2 border-b border-white/10 px-3">
+                  <span className="neon-text text-xs font-semibold tracking-wider">🖥 终端</span>
+                  <span className="text-[10px] text-slate-600">
+                    {language === 'python' ? 'python3 -u main.py' : 'g++ main.cpp && ./main'}
+                  </span>
+                  <span className={`flex-1 truncate text-right text-[10px] ${meta.cls}`}>
+                    ● {meta.label}
+                  </span>
+                  <button
+                    onClick={() => setTerminalOpen(false)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-cyan-200"
+                    aria-label="隐藏终端"
+                    title="隐藏终端（会话继续运行）"
+                  >
+                    ⌄
+                  </button>
+                </div>
+
+                {/* xterm */}
+                <div ref={termElRef} className="min-h-0 flex-1 overflow-hidden bg-[#0a0a12] p-2" />
+              </div>
             </div>
-            <div ref={termElRef} className="h-[380px] p-2" />
-          </div>
-        </div>
+        </motion.section>
       </div>
     </div>
   );
