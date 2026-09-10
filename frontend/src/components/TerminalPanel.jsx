@@ -1,7 +1,8 @@
-import { lazy, Suspense, useRef } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useUiStore } from '../store/uiStore';
 import { rafCoalesce } from '../utils/rafCoalesce';
+import SandboxEnvModal from './SandboxEnvModal';
 
 // 工作区交互终端面板：可收起（收起不中断会话）、高度可拖、状态栏 + 停止/隐藏
 const TerminalScreen = lazy(() => import('./TerminalScreen'));
@@ -28,6 +29,7 @@ export default function TerminalPanel() {
 
   const panelRef = useRef(null);
   const screenRef = useRef(null);
+  const [envOpen, setEnvOpen] = useState(false); // 沙箱环境说明弹窗
   const meta = STATUS_META[termStatus] || STATUS_META.idle;
 
   // 拖动顶部分隔条调整终端高度
@@ -87,6 +89,13 @@ export default function TerminalPanel() {
               {termStatusText ? <span className="text-slate-500"> · {termStatusText}</span> : null}
             </span>
             <button
+              onClick={() => setEnvOpen(true)}
+              className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 text-[11px] text-slate-400 transition hover:border-cyan-400/40 hover:text-cyan-200"
+              title="终端跑在独立沙箱里：查看 Python 版本与预装库（与「项目 Python 环境」不同）"
+            >
+              ⓘ<span className="hidden sm:inline"> 沙箱</span>
+            </button>
+            <button
               onClick={() => setTermWinOpen(true)}
               disabled={!termSession}
               className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/20 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-600"
@@ -120,6 +129,9 @@ export default function TerminalPanel() {
           </div>
         </div>
       </div>
+
+      {/* 沙箱环境说明（portal 到 body，不受面板 overflow-hidden 裁剪） */}
+      <SandboxEnvModal open={envOpen} onClose={() => setEnvOpen(false)} />
     </motion.section>
   );
 }

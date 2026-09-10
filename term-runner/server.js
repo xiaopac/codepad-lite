@@ -294,11 +294,62 @@ async function startSession(sessionId) {
   return { ok: true };
 }
 
+// ── 沙箱环境信息：终端里实际可用的 Python / 预装库 / 编译器 ──
+// 终端跑的是本镜像自带的系统 Python（与用户「项目 Python 环境」无关），
+// 因此把这里的真实清单暴露给前端，避免用户误以为终端用的是自己配置的环境。
+// 首次请求时探测并缓存（pip list 约 1 秒，不放在启动路径上）。
+const PIP_TOOL_PACKAGES = new Set(['pip', 'setuptools', 'wheel', 'pkg-resources', 'distribute']);
+let envInfoPromise = null;
+
+function probeEnvInfo() {
+  const run = (cmd, args) => {
+    try {
+      const r = spawnSync(cmd, args, { encoding: 'utf8', timeout: 20000 });
+      return String(r.stdout || '').trim();
+    } catch {
+      return '';
+    }
+  };
+  const python = run('python3', ['-c', 'import sys;print(".".join(map(str,sys.version_info[:3])))']) || '未知';
+  let packages = [];
+  try {
+    const list = JSON.parse(run('python3', ['-m', 'pip', 'list', '--format=json', '--disable-pip-version-check']) || '[]');
+    packages = list
+      .map((p) => ({ name: String(p.name || ''), version: String(p.version || '') }))
+      .filter((p) => p.name && !PIP_TOOL_PACKAGES.has(p.name.toLowerCase()))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch { /* pip 不可用时返回空清单 */ }
+  const tools = [];
+  for (const [name, args] of [
+    ['g++', ['--version']],
+    ['gcc', ['--version']],
+    ['make', ['--version']],
+  ]) {
+    const out = run(name, args);
+    const m = out.match(/(\d+\.\d+(\.\d+)?)/);
+    if (m) tools.push({ name, version: m[1] });
+  }
+  return { python, packages, tools };
+}
+
 // ── HTTP：健康检查 + 会话登记 ──
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, sessions: sessions.size, pending: pending.size }));
+    return;
+  }
+  if (req.method === 'GET' && req.url === '/env') {
+    if (!envInfoPromise) envInfoPromise = Promise.resolve().then(probeEnvInfo);
+    envInfoPromise
+      .then((info) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(info));
+      })
+      .catch(() => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: '环境探测失败' }));
+      });
     return;
   }
   if (req.method === 'POST' && req.url === '/sessions') {

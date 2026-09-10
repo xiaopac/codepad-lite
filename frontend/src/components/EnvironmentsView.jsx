@@ -223,6 +223,13 @@ export default function EnvironmentsView({ onBack }) {
 
       <div className="min-h-0 flex-1 overflow-y-auto scroll-touch p-4">
         <div className="mx-auto max-w-3xl">
+          {/* 与终端沙箱的区别提示（终端跑在独立沙箱镜像里，不读这里的环境） */}
+          <p className="mb-4 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-[11px] leading-relaxed text-cyan-100/85">
+            这里配置的环境只用于 <b>▶ 运行</b>（批量执行）。
+            <b>💻 终端运行</b> 跑在独立沙箱镜像里，Python 与预装库由镜像固定、与此处无关；
+            终端面板里的「ⓘ 沙箱」可查看终端实际可用的库。
+          </p>
+
           {/* 新建环境表单 */}
           <AnimatePresence initial={false}>
             {creating && (
