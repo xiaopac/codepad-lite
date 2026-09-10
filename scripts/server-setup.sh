@@ -11,6 +11,9 @@ fi
 
 cd "$(dirname "$0")/.."
 
+# 网页端口：与 docker-compose 的 WEB_PORT 默认值保持一致（.env 里可覆盖）
+WEB_PORT="${WEB_PORT:-8081}"
+
 # ── 1. 安装 Docker Engine + Compose v2（已安装则跳过） ──
 if ! command -v docker >/dev/null 2>&1; then
   echo "==> 安装 Docker Engine + Compose v2 ..."
@@ -28,7 +31,7 @@ if command -v ufw >/dev/null 2>&1; then
   ufw --force enable
   echo "==> 防火墙已配置（仅开放 22 / 80 / 443）"
 else
-  echo "==> 未检测到 ufw，请自行在云厂商安全组放行 80/443（8080/2000/3001 不要放行）"
+  echo "==> 未检测到 ufw，请自行在云厂商安全组放行 80/443（${WEB_PORT}/2000/3001 不要放行）"
 fi
 
 # ── 3. 生成 .env（随机强密钥；管理员密码请记下，也可之后手动修改） ──
@@ -56,6 +59,6 @@ docker compose up -d --build
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo ""
 echo "==> 部署完成！"
-echo "    访问地址：http://${IP:-服务器IP}:8080"
+echo "    访问地址：http://${IP:-服务器IP}:${WEB_PORT}"
 echo "    查看日志：docker compose logs -f backend"
 echo "    首次启动 piston 需 1-2 分钟自动安装 cpp/python 运行时，稍后即可执行代码"

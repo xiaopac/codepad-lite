@@ -15,7 +15,7 @@
 ┌────────────┐   /api (nginx 反代)   ┌────────────┐  HTTP /api/v2/execute  ┌────────────┐
 │  frontend   │ ───────────────────▶ │  backend    │ ────────────────────▶ │   piston    │
 │ nginx+React │                      │ Express     │                        │  (Docker)   │
-│   :8080     │                      │ SQLite+JWT  │                        │   :2000     │
+│   :8081     │                      │ SQLite+JWT  │                        │   :2000     │
 └────────────┘                      └─────┬──────┘                        └────────────┘
                                           │ 文件内容
                                           ▼
@@ -39,7 +39,7 @@ cp .env.example .env        # Windows: copy .env.example .env
 docker compose up -d --build
 
 # 3. 打开浏览器（iPad 也可直接访问宿主机 IP）
-#    http://localhost:8080
+#    http://localhost:8081      （网页端口默认 8081，可用 .env 的 WEB_PORT 修改）
 ```
 
 > **关于 ```bash**：`bash` 只是 Markdown 代码块的语法高亮标记，**不是要求 Git Bash**。
@@ -52,7 +52,7 @@ copy .env.example .env      # 然后编辑 .env，修改 JWT_SECRET
 docker compose up -d --build
 ```
 
-浏览器打开 http://localhost:8080（iPad 访问宿主机 IP 即可）。
+浏览器打开 http://localhost:8081（iPad 访问宿主机 IP 即可）。
 
 > **首次启动说明**：piston 容器就绪后，后端会自动调用其包管理 API 安装
 > `cpp` / `python` 运行时（约 1-2 分钟，下载工具链）。首次点击「▶ 运行」
@@ -306,7 +306,7 @@ docker compose up -d --build
 docker compose logs -f backend
 ```
 
-访问 `http://服务器IP:8080`，用 `xiaopac` + 你设置的 `ADMIN_PASSWORD` 登录。
+访问 `http://服务器IP:8081`，用 `xiaopac` + 你设置的 `ADMIN_PASSWORD` 登录。
 
 ### 4. 数据迁移（可选：把本机的账号/代码搬到服务器）
 
@@ -339,14 +339,14 @@ done
 sudo apt install -y caddy
 # /etc/caddy/Caddyfile 内容：
 #   code.example.com {
-#       reverse_proxy localhost:8080
+#       reverse_proxy localhost:8081
 #   }
 sudo systemctl reload caddy
 ```
 
 没有域名：可改用 Cloudflare Tunnel，或接受 HTTP 仅限内网使用。
-开启 HTTPS 后建议把防火墙的 80 关掉、8080 不对外开放（本 compose 只映射 8080，
-由 Caddy 转发）。
+开启 HTTPS 后建议把防火墙的 80 关掉、8081 不对外开放（本 compose 只映射网页端口，
+由 Caddy 转发）。**改了网页端口（`.env` 的 `WEB_PORT`）时，这里的 Caddy 反代地址也要一起改。**
 
 ### 6. 日常运维
 
@@ -421,11 +421,11 @@ cd codepad-lite
 # 3. 一键初始化（生成随机密钥 + 构建启动）
 powershell -ExecutionPolicy Bypass -File scripts\server-setup.ps1
 
-# 4. 放行防火墙端口（管理员 PowerShell；云服务器还需在安全组放行 8080）
-netsh advfirewall firewall add rule name="CodePad-8080" dir=in action=allow protocol=TCP localport=8080
+# 4. 放行防火墙端口（管理员 PowerShell；云服务器还需在安全组放行 8081）
+netsh advfirewall firewall add rule name="CodePad-8081" dir=in action=allow protocol=TCP localport=8081
 ```
 
-访问 `http://服务器IP:8080`，用脚本打印的 `xiaopac` 密码登录。
+访问 `http://服务器IP:8081`，用脚本打印的 `xiaopac` 密码登录。
 
 > 国内服务器连不上 GitHub（报 `curl 28 ... Could not connect`）时改用 Gitee 克隆，
 > 见文末「故障排查 → 服务器连不上 GitHub」。
@@ -525,7 +525,8 @@ Invoke-RestMethod http://localhost:2000/api/v2/packages -Method Post -ContentTyp
 **输出被截断**：Piston 默认 stdout 上限仅 1024 字符，本项目已在 compose 中通过
 `PISTON_OUTPUT_MAX_SIZE=100000` 放宽；如仍需更大可自行调整。
 
-**端口冲突**：前端 `8080`、后端 `3001`、Piston `2000`，可在 compose 中修改映射。
+**端口冲突**：前端网页端口默认 `8081`（`.env` 里加 `WEB_PORT=9000` 之类即可改）、
+后端 `3001`、Piston `2000`（仅绑定宿主机回环）。改了网页端口记得同步防火墙 / 安全组 / Caddy 反代。
 
 ---
 

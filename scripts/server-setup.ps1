@@ -37,8 +37,10 @@ Write-Host "[OK] Building and starting services ..."
 docker compose up -d --build
 
 Write-Host ""
-Write-Host "[DONE] Open http://<SERVER_IP>:8080 and login with xiaopac"
+# 网页端口：与 docker-compose 的 WEB_PORT 保持一致（.env 里可覆盖）
+$webPort = if ($env:WEB_PORT) { $env:WEB_PORT } else { '8081' }
+Write-Host "[DONE] Open http://<SERVER_IP>:$webPort and login with xiaopac"
 Write-Host "       Watch logs: docker compose logs -f backend"
 Write-Host ""
-Write-Host "       Firewall (run in an ADMIN PowerShell if port 8080 is blocked):"
-Write-Host "       netsh advfirewall firewall add rule name=CodePad-8080 dir=in action=allow protocol=TCP localport=8080"
+Write-Host "       Firewall (run in an ADMIN PowerShell if port $webPort is blocked):"
+Write-Host "       netsh advfirewall firewall add rule name=CodePad-$webPort dir=in action=allow protocol=TCP localport=$webPort"
