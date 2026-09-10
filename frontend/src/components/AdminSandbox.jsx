@@ -10,19 +10,51 @@ const QUICK_PACKAGES = ['numpy', 'requests', 'pandas', 'matplotlib', 'scipy', 'o
 const CARD = 'glass rounded-2xl p-4';
 const BTN = 'flex h-10 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition';
 
+// 时间显示：今天只显示时分秒，其余带日期
+const fmtTime = (ts) => {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const p = (n) => String(n).padStart(2, '0');
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const hms = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return sameDay ? hms : `${p(d.getMonth() + 1)}-${p(d.getDate())} ${hms}`;
+};
+
+const fmtDuration = (ms) => {
+  if (!ms && ms !== 0) return '';
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+};
+
+// 后端返回的是 SQLite 的 "YYYY-MM-DD HH:MM:SS"（UTC）
+const toMs = (v) => (v ? Date.parse(`${String(v).replace(' ', 'T')}Z`) : null);
+
+const STATUS_META = {
+  running: { label: '进行中', cls: 'border-cyan-400/30 bg-cyan-400/10 text-cyan-200' },
+  done: { label: '成功', cls: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200' },
+  error: { label: '失败', cls: 'border-rose-400/30 bg-rose-500/10 text-rose-300' },
+};
+
 export default function AdminSandbox() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [openLog, setOpenLog] = useState(null); // { id, text } 展开查看的那一条
+  const [logLoading, setLogLoading] = useState(0);
   const timerRef = useRef(0);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const d = await api('/api/admin/sandbox');
+      const [d, l] = await Promise.all([
+        api('/api/admin/sandbox'),
+        api('/api/admin/sandbox/logs?limit=50').catch(() => ({ logs: [] })),
+      ]);
       setData(d);
+      setLogs(l.logs || []);
       setError('');
       return d;
     } catch (e) {
@@ -32,6 +64,22 @@ export default function AdminSandbox() {
       if (!silent) setLoading(false);
     }
   }, []);
+
+  const toggleLog = async (row) => {
+    if (openLog?.id === row.id) {
+      setOpenLog(null);
+      return;
+    }
+    setLogLoading(row.id);
+    try {
+      const d = await api(`/api/admin/sandbox/logs/${row.id}`);
+      setOpenLog({ id: row.id, text: d.log?.log || '（无输出）' });
+    } catch (e) {
+      toast.error(e.message || '读取日志失败');
+    } finally {
+      setLogLoading(0);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -200,6 +248,57 @@ export default function AdminSandbox() {
           )}
         </div>
       )}
+
+      {/* 操作日志（审计：谁在什么时候装/卸了什么） */}
+      <div className={CARD}>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-slate-100">📜 操作日志</p>
+          <span className="text-[10px] text-slate-500">
+            最近 {logs.length} 条 · 记录管理员、动作、结果与完整 pip 输出
+          </span>
+          <button
+            onClick={() => load(true)}
+            className={`${BTN} ml-auto bg-white/5 text-slate-300 hover:bg-white/10`}
+          >
+            ↻ 刷新
+          </button>
+        </div>
+        {logs.length === 0 ? (
+          <p className="mt-3 text-xs text-slate-500">暂无记录 —— 安装或卸载一次后这里会出现日志。</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {logs.map((row) => {
+              const meta = STATUS_META[row.status] || STATUS_META.error;
+              const open = openLog?.id === row.id;
+              return (
+                <div key={row.id} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-mono text-[11px] text-slate-500">{fmtTime(toMs(row.created_at))}</span>
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] ${meta.cls}`}>{meta.label}</span>
+                    <span className="text-[11px] text-slate-300">
+                      {row.action === 'install' ? '⬇ 安装' : '🗑 卸载'} <b>{row.packages.join(' ')}</b>
+                    </span>
+                    <span className="text-[10px] text-slate-500">by {row.admin_email || '未知'}</span>
+                    {row.duration_ms ? <span className="text-[10px] text-slate-600">{fmtDuration(row.duration_ms)}</span> : null}
+                    <button
+                      onClick={() => toggleLog(row)}
+                      className={`${BTN} ml-auto bg-white/5 text-slate-400 hover:bg-white/10 hover:text-cyan-200`}
+                    >
+                      {logLoading === row.id ? '读取中…' : open ? '收起日志' : '📄 日志'}
+                    </button>
+                  </div>
+                  {row.error && <p className="mt-1 text-[11px] leading-relaxed text-rose-300">{row.error}</p>}
+                  {open && (
+                    <pre className="mt-2 max-h-64 overflow-auto scroll-touch rounded-lg bg-[#07070d] p-3 font-mono text-[11px] leading-relaxed text-slate-300">
+                      {openLog.text}
+                    </pre>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* 管理员添加的库（可卸载） */}
       <div className={CARD}>

@@ -148,6 +148,25 @@ CREATE TABLE IF NOT EXISTS environments (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE(user_id, name)
 );
+
+-- 沙箱库操作日志（管理员后台「🧪 沙箱库」的安装/卸载记录，审计用）
+-- admin_email 为快照：管理员账号被删除后日志仍可读（admin_id 置空）
+CREATE TABLE IF NOT EXISTS sandbox_package_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id INTEGER,
+  admin_email TEXT,
+  action TEXT NOT NULL,               -- install | uninstall
+  packages TEXT NOT NULL,             -- JSON 数组
+  status TEXT NOT NULL,               -- running | done | error
+  error TEXT,
+  log TEXT,                           -- env-builder 的 pip 输出（截断保存）
+  duration_ms INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  finished_at DATETIME,
+  FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sandbox_logs_created ON sandbox_package_logs(id DESC);
 `);
 
 // 项目 ↔ 环境绑定（必须在 projects 表创建之后执行）
