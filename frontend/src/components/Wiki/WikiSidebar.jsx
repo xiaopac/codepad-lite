@@ -103,8 +103,30 @@ function WikiPanel({ onClose }) {
   useMotionValueEvent(h, 'change', (v) => setSize((s) => ({ ...s, h: v })));
 
   const [tab, setTab] = useState('cpp');
-  const [activeId, setActiveId] = useState('intro');
   const current = TABS.find((t) => t.id === tab);
+  // 小节导航：目录是 章节 → 小节 的树；activeId 指向当前小节
+  const [activeId, setActiveId] = useState(
+    () => current?.data.chapters?.[0]?.sections?.[0]?.id || null,
+  );
+
+  // 扁平化小节序列（全局编号 + 上一节/下一节）
+  const flatSections = useMemo(() => {
+    const list = [];
+    for (const ch of current?.data.chapters || []) {
+      for (const s of ch.sections) {
+        list.push({ ...s, number: String(list.length + 1).padStart(2, '0') });
+      }
+    }
+    return list;
+  }, [current]);
+  const activeIndex = flatSections.findIndex((s) => s.id === activeId);
+  const activeSection = activeIndex >= 0 ? flatSections[activeIndex] : null;
+  const activeChapter = useMemo(() => {
+    if (!activeSection) return null;
+    return (current?.data.chapters || []).find((ch) => ch.sections.some((s) => s.id === activeSection.id)) || null;
+  }, [current, activeSection]);
+  const prevSection = activeIndex > 0 ? flatSections[activeIndex - 1] : null;
+  const nextSection = activeIndex >= 0 && activeIndex < flatSections.length - 1 ? flatSections[activeIndex + 1] : null;
 
   const split = size.w >= SPLIT_W; // 宽窗口 → 目录左 / 内容右；窄窗口 → 上下结构
 
@@ -281,7 +303,7 @@ function WikiPanel({ onClose }) {
     setTab(id);
     const next = TABS.find((t) => t.id === id);
     if (next?.enabled && next.data.chapters.length > 0) {
-      setActiveId(next.data.chapters[0].id);
+      setActiveId(next.data.chapters[0].sections[0]?.id || null);
     }
   };
 
@@ -374,7 +396,7 @@ function WikiPanel({ onClose }) {
                 </p>
                 <WikiDirectory
                   chapters={current.data.chapters}
-                  activeId={activeId}
+                  activeSectionId={activeId}
                   onSelect={setActiveId}
                 />
               </div>
@@ -400,7 +422,13 @@ function WikiPanel({ onClose }) {
                 <p className="shrink-0 px-2 pb-1 text-[10px] uppercase tracking-widest text-slate-500">
                   内容
                 </p>
-                <WikiContent chapter={current.data.chapters.find((c) => c.id === activeId)} />
+                <WikiContent
+                  section={activeSection}
+                  chapterTitle={activeChapter?.title}
+                  prev={prevSection}
+                  next={nextSection}
+                  onNavigate={setActiveId}
+                />
               </div>
             </>
           ) : (
