@@ -6,8 +6,6 @@ import { useProjectStore } from './store/projectStore';
 import { useUiStore } from './store/uiStore';
 import { useVisualViewportHeight } from './hooks/useVisualViewport';
 import AuthPage from './components/AuthPage';
-import ProjectListView from './components/ProjectListView';
-import Workspace from './components/Workspace';
 import MediaPreview from './components/MediaPreview';
 import ToastContainer from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -17,6 +15,10 @@ import WikiButton from './components/Wiki/WikiButton';
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const EnvironmentsView = lazy(() => import('./components/EnvironmentsView'));
 const ProfilePanel = lazy(() => import('./components/ProfilePanel'));
+// 工作区（含 Monaco 编辑器内核，体积最大）与项目列表：进入后才加载，
+// 首页首屏不再需要下载编辑器，显著加快入站速度
+const Workspace = lazy(() => import('./components/Workspace'));
+const ProjectListView = lazy(() => import('./components/ProjectListView'));
 // Wiki 侧边栏体积较大（react-markdown + highlight.js），点击图标时才加载
 const WikiSidebar = lazy(() => import('./components/Wiki/WikiSidebar'));
 
@@ -90,11 +92,15 @@ function ProjectArea() {
         </Page>
       ) : currentProject ? (
         <Page key="workspace">
-          <Workspace onOpenEnvironments={() => setEnvOpen(true)} />
+          <Suspense fallback={<SuspenseFallback />}>
+            <Workspace onOpenEnvironments={() => setEnvOpen(true)} />
+          </Suspense>
         </Page>
       ) : (
         <Page key="projects">
-          <ProjectListView onOpenEnvironments={() => setEnvOpen(true)} />
+          <Suspense fallback={<SuspenseFallback />}>
+            <ProjectListView onOpenEnvironments={() => setEnvOpen(true)} />
+          </Suspense>
         </Page>
       )}
     </AnimatePresence>

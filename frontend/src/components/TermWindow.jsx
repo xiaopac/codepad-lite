@@ -4,6 +4,7 @@ import { AnimatePresence, animate, motion, useDragControls, useMotionValue } fro
 import RFB from '@novnc/novnc';
 import { useUiStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
+import { rafCoalesce } from '../utils/rafCoalesce';
 
 // pygame 程序窗口浮层（Phase 1）：
 // 可拖拽（仅标题栏，画布区保留给 pygame 鼠标交互）+ 右下角缩放（位置不动）
@@ -125,13 +126,16 @@ function TermWindowInner() {
     const startY = e.clientY;
     const startW = sizeRef.current.w;
     const startH = sizeRef.current.h;
+    // rAF 合并：拖动缩放时一帧只提交一次尺寸，避免高频重排
+    const applySize = rafCoalesce((w, h) => setSize({ w, h }));
     const move = (ev) => {
-      setSize({
-        w: clamp(startW + ev.clientX - startX, MIN_W, window.innerWidth - SAFE * 2),
-        h: clamp(startH + ev.clientY - startY, MIN_H, window.innerHeight - SAFE * 2),
-      });
+      applySize(
+        Math.round(clamp(startW + ev.clientX - startX, MIN_W, window.innerWidth - SAFE * 2)),
+        Math.round(clamp(startH + ev.clientY - startY, MIN_H, window.innerHeight - SAFE * 2)),
+      );
     };
     const up = () => {
+      applySize.flush();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);

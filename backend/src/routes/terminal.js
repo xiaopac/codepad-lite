@@ -7,6 +7,7 @@ const HttpError = require('../utils/HttpError');
 const { requireAuth } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const { logger, maskEmail } = require('../utils/logger');
+const { terminalLimiter } = require('../utils/rateLimiter');
 const { tryAcquire } = require('../terminalSessions');
 
 const router = express.Router();
@@ -16,6 +17,7 @@ router.use(requireAuth);
 // 登记代码到 term-runner；真正的 PTY 进程在 WebSocket 连接时才启动
 router.post(
   '/sessions',
+  terminalLimiter,
   validate([
     body('language').isIn(['python', 'cpp', 'c']).withMessage('仅支持 python / cpp / c'),
     body('code').isString().withMessage('code 必须是字符串'),

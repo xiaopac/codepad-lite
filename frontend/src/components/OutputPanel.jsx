@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useUiStore } from '../store/uiStore';
 import { useEditorStore } from '../store/editorStore';
+import { rafCoalesce } from '../utils/rafCoalesce';
 
 // 终端式控制台：输出日志在上（自动滚底），输入框常驻在下——不再需要切换标签
 export default function OutputPanel() {
@@ -35,13 +36,16 @@ export default function OutputPanel() {
     const startH = outputHeight;
     const container = panelRef.current?.parentElement;
 
+    // rAF 合并：指针每移动一次不再各触发一轮渲染，一帧只更新一次高度
+    const applyHeight = rafCoalesce((h) => setOutputHeight(h));
     const onMove = (ev) => {
       const containerH = container?.clientHeight ?? 600;
       const max = Math.max(200, containerH - 200);
       const next = Math.min(max, Math.max(180, startH + (startY - ev.clientY)));
-      setOutputHeight(Math.round(next));
+      applyHeight(Math.round(next));
     };
     const onUp = () => {
+      applyHeight.flush();
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);

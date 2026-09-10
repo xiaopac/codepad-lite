@@ -24,4 +24,14 @@ const executeLimiter = make({
     req.user?.id ? `user:${req.user.id}` : ipKeyGenerator(req.ip),
 });
 
-module.exports = { globalLimiter, authLimiter, executeLimiter };
+// 交互终端会话创建：每用户每分钟 12 次
+// 每次创建都会拉起 PTY + Xvfb + x11vnc，属于重资源操作，必须单独限制
+const terminalLimiter = make({
+  windowMs: 60 * 1000,
+  limit: 12,
+  message: { error: '终端启动过于频繁，请稍后再试' },
+  keyGenerator: (req) =>
+    req.user?.id ? `term:${req.user.id}` : `term:${ipKeyGenerator(req.ip)}`,
+});
+
+module.exports = { globalLimiter, authLimiter, executeLimiter, terminalLimiter };

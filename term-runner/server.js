@@ -345,8 +345,12 @@ const server = http.createServer((req, res) => {
 // 注意：多个 WebSocketServer 必须用 noServer + 单一 upgrade 分发（官方多通道模式）。
 // 直接给多个 WSS 传 { server } 会导致升级后的 socket 仍被 HTTP 解析器监听，
 // 把 400 Bad Request 写进 WS 字节流（帧损坏）。
-const wss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
-const vncWss = new WebSocketServer({ noServer: true, perMessageDeflate: true });
+// 入站消息上限：终端按键/粘贴与 RFB 客户端事件都是小包，
+// 限制单条消息大小可防超大帧撑爆内存（默认 100MB 过宽）。
+const WS_MAX_PAYLOAD = 4 * 1024 * 1024;
+
+const wss = new WebSocketServer({ noServer: true, perMessageDeflate: true, maxPayload: WS_MAX_PAYLOAD });
+const vncWss = new WebSocketServer({ noServer: true, perMessageDeflate: true, maxPayload: WS_MAX_PAYLOAD });
 
 server.on('upgrade', (req, socket, head) => {
   let pathname = '';

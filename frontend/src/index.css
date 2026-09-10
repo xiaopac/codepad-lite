@@ -113,21 +113,36 @@ button:not(:disabled):active {
   color: rgba(230, 250, 255, 0.35);
 }
 
-/* ── 运行按钮“呼吸”霓虹阴影 ──────────────────────────── */
+/* ── 运行按钮“呼吸”霓虹阴影 ────────────────────────────
+   阴影本身静态（画一次进图层），只让伪元素的 opacity 呼吸：
+   合成器线程处理，避免每帧重算 box-shadow blur（iPad 上尤其明显）。 */
 .breathe-run {
-  animation: breatheRun 2.6s ease-in-out infinite;
+  position: relative;
+  isolation: isolate;
+  box-shadow:
+    0 0 24px rgba(0, 240, 255, 0.5),
+    0 0 56px rgba(168, 85, 247, 0.35);
 }
-@keyframes breatheRun {
+.breathe-run::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 30px rgba(0, 240, 255, 0.65),
+    0 0 70px rgba(168, 85, 247, 0.45);
+  opacity: 0;
+  animation: breatheRunGlow 2.6s ease-in-out infinite;
+}
+@keyframes breatheRunGlow {
   0%,
   100% {
-    box-shadow:
-      0 0 18px rgba(0, 240, 255, 0.35),
-      0 0 44px rgba(168, 85, 247, 0.25);
+    opacity: 0;
   }
   50% {
-    box-shadow:
-      0 0 30px rgba(0, 240, 255, 0.65),
-      0 0 70px rgba(168, 85, 247, 0.45);
+    opacity: 1;
   }
 }
 
@@ -259,6 +274,8 @@ button:not(:disabled):active {
   filter: blur(90px);
   opacity: 0.55;
   animation: orbFloat 16s ease-in-out infinite;
+  /* 提前提升为合成层：漂浮时只做 transform，不再触发大范围重绘 */
+  will-change: transform;
 }
 .orb-a {
   width: 460px;
@@ -306,6 +323,7 @@ button:not(:disabled):active {
   align-items: center;
   white-space: nowrap;
   animation: marquee 28s linear infinite;
+  will-change: transform;
 }
 @keyframes marquee {
   from {
@@ -476,4 +494,18 @@ button:not(:disabled):active {
   border: none;
   height: 1px;
   background: linear-gradient(to right, transparent, rgba(0, 240, 255, 0.4), transparent);
+}
+
+/* ── 无障碍 / 省电：系统开启“减弱动态效果”时停掉无限装饰动画 ──
+   仅关闭纯装饰动画，不影响任何功能与布局。 */
+@media (prefers-reduced-motion: reduce) {
+  .orb,
+  .tech-marquee-track,
+  .wave-loader i,
+  .breathe-run::after {
+    animation: none !important;
+  }
+  .breathe-run::after {
+    opacity: 0.6;
+  }
 }

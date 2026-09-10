@@ -8,6 +8,20 @@ fs.mkdirSync(path.dirname(config.DB_PATH), { recursive: true });
 const db = new Database(config.DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+// 并发与读写性能调优：
+// busy_timeout —— 多连接/多请求并发写入时等待锁而不是立刻 SQLITE_BUSY
+// synchronous=NORMAL —— WAL 下依然安全（崩溃最多丢最后一个事务），写入快数倍
+// cache_size / temp_store —— 页缓存 16MB、临时表放内存，减少磁盘 IO
+db.pragma('busy_timeout = 5000');
+db.pragma('synchronous = NORMAL');
+db.pragma('cache_size = -16000');
+db.pragma('temp_store = MEMORY');
+// 内存映射 IO（64MB）：读路径少一次拷贝，列表/日志查询更快
+try {
+  db.pragma('mmap_size = 67108864');
+} catch {
+  /* 某些文件系统不支持，忽略 */
+}
 
 // ═══════════════ 用户表（新 Schema：邮箱 + 审计字段 + 三态） ═══════════════
 db.exec(`

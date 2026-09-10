@@ -11,6 +11,7 @@ import {
 import WikiTabs from './WikiTabs';
 import WikiDirectory from './WikiDirectory';
 import WikiContent from './WikiContent';
+import { rafCoalesce } from '../../utils/rafCoalesce';
 import { cppWikiData } from './wikiData/cppWikiData';
 import { pythonWikiData } from './wikiData/pythonWikiData';
 import { cWikiData } from './wikiData/cWikiData';
@@ -233,16 +234,21 @@ function WikiPanel({ onClose }) {
     const startW = sizeRef.current.w;
     const startH = sizeRef.current.h;
     const latest = { w: startW, h: startH };
+    // rAF 合并：拖动时一帧只写一次尺寸（latest 仍同步跟进，供松手时持久化）
+    const applySize = rafCoalesce((nw, nh) => {
+      w.set(nw); // 即时跟手（无过渡）
+      h.set(nh);
+    });
     const move = (ev) => {
       const { vw, vh } = viewport();
       const maxW = Math.max(MIN_W, vw - SAFE - x.get());
       const maxH = Math.max(MIN_H, vh - SAFE - y.get());
       latest.w = clamp(startW + ev.clientX - startX, MIN_W, maxW);
       latest.h = clamp(startH + ev.clientY - startY, MIN_H, maxH);
-      w.set(latest.w); // 即时跟手（无过渡）
-      h.set(latest.h);
+      applySize(latest.w, latest.h);
     };
     const up = () => {
+      applySize.flush();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
@@ -277,21 +283,25 @@ function WikiPanel({ onClose }) {
     e.stopPropagation();
     const startAxis = split ? e.clientX : e.clientY;
     const startRatio = ratioRef.current;
+    let lastRatio = startRatio;
+    // rAF 合并：分割条拖动时一帧只重排一次（目录/内容列表较重）
+    const applyRatio = rafCoalesce((r) => setRatio(r));
     const move = (ev) => {
       const rect = mainRef.current?.getBoundingClientRect();
       if (!rect) return;
       const cur = split ? ev.clientX : ev.clientY;
       const total = split ? rect.width : rect.height;
       if (total <= 0) return;
-      const next = clamp(startRatio + (cur - startAxis) / total, MIN_RATIO, MAX_RATIO);
-      setRatio(next);
+      lastRatio = clamp(startRatio + (cur - startAxis) / total, MIN_RATIO, MAX_RATIO);
+      applyRatio(lastRatio);
     };
     const up = () => {
+      applyRatio.flush();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       try {
-        localStorage.setItem(RATIO_KEY, String(clamp(ratioRef.current, MIN_RATIO, MAX_RATIO)));
+        localStorage.setItem(RATIO_KEY, String(clamp(lastRatio, MIN_RATIO, MAX_RATIO)));
       } catch { /* 忽略 */ }
     };
     window.addEventListener('pointermove', move);

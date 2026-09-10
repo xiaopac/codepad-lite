@@ -23,6 +23,10 @@ seedAdmin();
 
 // HTTP + WebSocket 共用一个 server：/api/terminal/ws 由 attachTerminalWs 处理 upgrade
 const server = http.createServer(app);
+// 反代（nginx/Caddy）连接复用调优：默认 keepAliveTimeout 5s 小于 nginx 的 75s，
+// 会在复用空闲连接上偶发 502/ECONNRESET。保持连接久一点 + 头超时略大于它。
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
 attachTerminalWs(server);
 
 server.listen(config.PORT, () => {

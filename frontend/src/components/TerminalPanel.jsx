@@ -1,6 +1,7 @@
 import { lazy, Suspense, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useUiStore } from '../store/uiStore';
+import { rafCoalesce } from '../utils/rafCoalesce';
 
 // 工作区交互终端面板：可收起（收起不中断会话）、高度可拖、状态栏 + 停止/隐藏
 const TerminalScreen = lazy(() => import('./TerminalScreen'));
@@ -35,13 +36,16 @@ export default function TerminalPanel() {
     const startY = e.clientY;
     const startH = termHeight;
     const container = panelRef.current?.parentElement;
+    // rAF 合并：拖动时一帧只更新一次高度，避免高频渲染
+    const applyHeight = rafCoalesce((h) => setTermHeight(h));
     const onMove = (ev) => {
       const containerH = container?.clientHeight ?? 600;
       const max = Math.max(200, containerH - 240);
       const next = Math.min(max, Math.max(180, startH + (startY - ev.clientY)));
-      setTermHeight(Math.round(next));
+      applyHeight(Math.round(next));
     };
     const onUp = () => {
+      applyHeight.flush();
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);

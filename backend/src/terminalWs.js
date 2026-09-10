@@ -11,7 +11,8 @@ const { logger } = require('./utils/logger');
 const { release } = require('./terminalSessions');
 
 function attachTerminalWs(server) {
-  const wss = new WebSocketServer({ noServer: true });
+  // 浏览器 → 后端只有按键/RFB 事件这类小包，限制入站消息上限防内存膨胀
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 * 1024 });
 
   server.on('upgrade', (req, socket, head) => {
     let pathname = '';
@@ -67,7 +68,8 @@ function attachTerminalWs(server) {
     const upstreamUrl = `${config.TERM_RUNNER_URL.replace(/^http/, 'ws')}/${kind === 'vnc' ? 'vnc' : 'ws'}?session=${encodeURIComponent(sessionId)}`;
     let up;
     try {
-      up = new WebSocket(upstreamUrl);
+      // 上游是终端输出 / 原始 RFB 帧：单帧可能达数 MB（未压缩位图），上限放宽到 16MB
+      up = new WebSocket(upstreamUrl, { maxPayload: 16 * 1024 * 1024 });
     } catch {
       if (kind === 'term') release(userId, sessionId); // 只有终端通道关闭才释放配额（画面通道不影响会话）
       ws.close(1011, '终端服务不可用');
