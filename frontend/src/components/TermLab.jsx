@@ -209,7 +209,7 @@ export default function TermLab({ onBack }) {
   const sessionRunning = Boolean(termRef.current);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       {/* ── 工具栏（与工作区一致的风格） ── */}
       <header className="glass-strong flex h-14 shrink-0 items-center gap-1 border-x-0 border-t-0 px-2 sm:gap-2 sm:px-3">
         <button
@@ -270,25 +270,6 @@ export default function TermLab({ onBack }) {
             {busy ? '…' : '▶'} <span className="hidden sm:inline">{busy ? '启动中' : '启动终端'}</span>
           </button>
         )}
-
-        {/* 终端面板显隐 */}
-        <button
-          onClick={() => setTerminalOpen((v) => !v)}
-          className={`relative flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-sm transition ${
-            terminalOpen
-              ? 'bg-cyan-400/15 text-cyan-200'
-              : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-cyan-200'
-          }`}
-          title={terminalOpen ? '隐藏终端面板' : '显示终端面板'}
-        >
-          🖥 <span className="hidden sm:inline">{terminalOpen ? '终端 ⌄' : '终端 ˄'}</span>
-          {!terminalOpen && sessionRunning && (
-            <span
-              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400"
-              style={{ boxShadow: '0 0 8px rgba(52,211,153,0.9)' }}
-            />
-          )}
-        </button>
       </header>
 
       {/* ── 主体：代码区 + 底部终端 ── */}
@@ -367,6 +348,29 @@ export default function TermLab({ onBack }) {
             </div>
         </motion.section>
       </div>
+
+      {/* ── 右下角悬浮按钮：打开/收起终端（面板打开时自动浮到面板上方） ── */}
+      <motion.button
+        animate={{ bottom: terminalOpen ? terminalHeight + 20 : 16 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        onClick={() => setTerminalOpen((v) => !v)}
+        className={`absolute right-4 z-20 flex h-12 items-center gap-2 rounded-full border px-4 text-sm font-semibold shadow-[0_0_18px_rgba(0,240,255,0.35)] backdrop-blur-xl transition-shadow hover:shadow-[0_0_28px_rgba(0,240,255,0.55)] ${
+          terminalOpen
+            ? 'border-cyan-400/50 bg-cyan-400/15 text-cyan-200'
+            : 'border-cyan-400/50 bg-[#0a0a12]/80 text-cyan-200'
+        }`}
+        title={terminalOpen ? '收起终端（会话继续运行）' : '打开终端'}
+        aria-label={terminalOpen ? '收起终端' : '打开终端'}
+      >
+        <span>🖥</span>
+        <span>{terminalOpen ? '收起终端' : '打开终端'}</span>
+        {!terminalOpen && sessionRunning && (
+          <span
+            className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-emerald-300/60 bg-emerald-400"
+            style={{ boxShadow: '0 0 8px rgba(52,211,153,0.9)' }}
+          />
+        )}
+      </motion.button>
     </div>
   );
 }
