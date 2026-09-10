@@ -39,6 +39,9 @@ export default function SandboxEnvModal({ open, onClose }) {
   }, [open, onClose]);
 
   const tools = (info?.tools || []).map((t) => `${t.name} ${t.version}`).join(' · ');
+  const packages = info?.packages || [];
+  const system = info?.system || [];
+  const managedNames = new Set((info?.managed || []).map((p) => p.name.toLowerCase()));
 
   return createPortal(
     <AnimatePresence>
@@ -101,28 +104,49 @@ export default function SandboxEnvModal({ open, onClose }) {
                   </div>
 
                   <p className="mt-4 text-[10px] tracking-wider text-slate-500">
-                    预装第三方库（{info.packages?.length || 0}）
+                    预装第三方库（{packages.length}）
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {(info.packages || []).map((p) => (
+                    {packages.map((p) => (
                       <span
                         key={p.name}
                         className="rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-100"
                       >
                         {p.name}
                         <span className="ml-1.5 text-cyan-300/60">{p.version}</span>
+                        {managedNames.has(p.name.toLowerCase()) && (
+                          <span className="ml-1.5 text-[9px] text-cyan-300/50">管理员添加</span>
+                        )}
                       </span>
                     ))}
-                    {!info.packages?.length && (
-                      <span className="text-slate-500">（无可列出的第三方库）</span>
-                    )}
+                    {!packages.length && <span className="text-slate-500">（无可列出的第三方库）</span>}
                   </div>
+
+                  {system.length > 0 && (
+                    <>
+                      <p className="mt-4 text-[10px] tracking-wider text-slate-500">
+                        系统组件（镜像内置，pip 装不了）
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {system.map((s) => (
+                          <span
+                            key={s.name}
+                            className="rounded-lg border border-purple-400/25 bg-purple-400/10 px-2 py-1 text-[11px] text-purple-100"
+                          >
+                            {s.name}
+                            <span className="ml-1.5 text-purple-300/60">{s.version}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
 
                   <div className="mt-5 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-amber-100/90">
                     <p className="font-semibold">终端与「▶ 运行」是两套 Python 环境</p>
                     <p className="mt-1 text-amber-100/80">
-                      终端里的库由沙箱镜像固定，改不了；<b>▶ 运行</b> 用的是你在「项目 Python 环境」里配置的库
-                      （可在环境管理里自行勾选安装）。终端里没有的库，请用 ▶ 运行，或在终端里用标准库实现。
+                      终端里的库由沙箱镜像 + 管理员配置决定，用户不能自己装；
+                      <b>▶ 运行</b> 用的是你在「项目 Python 环境」里配置的库（可在环境管理里自行勾选安装）。
+                      终端里缺的库，可以请管理员在后台「🧪 沙箱库」里添加，或改用 ▶ 运行。
                     </p>
                   </div>
                 </>

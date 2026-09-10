@@ -50,6 +50,8 @@ services:
     restart: unless-stopped
     volumes:
       - piston_packages:/pkgs
+      # 沙箱共享库目录：管理员在后台添加的 pip 库装到这里（本容器有外网，负责下载）
+      - sandbox_pkgs:/pkgs/sandbox
     environment:
       PORT: 3100
       # 国内服务器可换成清华镜像：https://pypi.tuna.tsinghua.edu.cn/simple
@@ -110,12 +112,22 @@ services:
   # 只挂 internal 网络：沙箱内进程无法访问外网（安全设计）
   # ---------------------------------------------------------------
   term-runner:
-    build: ./term-runner
+    build:
+      context: ./term-runner
+      args:
+        # 需要额外的系统级组件（apt 包，如 python3-opencv ffmpeg）时在 .env 里加这一项再重建镜像
+        APT_EXTRA_PACKAGES: ${APT_EXTRA_PACKAGES:-}
+    image: codepad-lite-term-runner
     container_name: codepad-term-runner
     restart: unless-stopped
     environment:
       PORT: 4100
       MAX_SESSIONS: ${TERM_MAX_SESSIONS:-30}
+      # 管理员在后台添加的库落地在共享卷，靠 PYTHONPATH 让终端里的 python3 看到
+      SANDBOX_PKGS_DIR: /sandbox-pkgs
+      PYTHONPATH: /sandbox-pkgs
+    volumes:
+      - sandbox_pkgs:/sandbox-pkgs
     tmpfs:
       - /tmp:size=256m,mode=1777 # 会话目录：内存盘，重启即清空
     security_opt:
@@ -153,6 +165,7 @@ services:
 
 volumes:
   piston_packages:
+  sandbox_pkgs:      # 沙箱共享库：env-builder 写入（有外网），term-runner 读取（无外网）
   db_data:
   storage_data:
   logs_data:

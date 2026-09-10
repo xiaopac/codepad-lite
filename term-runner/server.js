@@ -275,6 +275,12 @@ async function startSession(sessionId) {
       LIBGL_ALWAYS_SOFTWARE: '1',
       PYGAME_HIDE_SUPPORT_PROMPT: '1',
       XDG_RUNTIME_DIR: '/tmp',
+      // 容器里 HOME 仍是镜像默认的 /root，而会话以 runner 用户跑：
+      // 不改成 runner 的家目录，fontconfig/gtk 之类会报 “No writable cache directories”
+      HOME: '/home/runner',
+      XDG_CACHE_HOME: '/tmp/.cache',
+      XDG_CONFIG_HOME: '/tmp/.config',
+      TMPDIR: '/tmp',
     },
   });
 
@@ -299,37 +305,87 @@ async function startSession(sessionId) {
 // 因此把这里的真实清单暴露给前端，避免用户误以为终端用的是自己配置的环境。
 // 首次请求时探测并缓存（pip list 约 1 秒，不放在启动路径上）。
 const PIP_TOOL_PACKAGES = new Set(['pip', 'setuptools', 'wheel', 'pkg-resources', 'distribute']);
+// 管理员在后台安装的库落地在共享卷（由 env-builder 写入，本容器只读）
+const SANDBOX_PKGS_DIR = process.env.SANDBOX_PKGS_DIR || '/sandbox-pkgs';
+// 镜像内置（apt 提供、pip list 里看不到）的常用模块：探测可用性与版本
+const SYSTEM_PROBES = [
+  { name: 'tkinter', apt: 'python3-tk', code: 'import tkinter;print(tkinter.TkVersion)' },
+  { name: 'Pillow', apt: 'python3-pil', code: 'import PIL;print(PIL.__version__)' },
+  { name: 'numpy', apt: 'python3-numpy', code: 'import numpy;print(numpy.__version__)' },
+  { name: 'Tcl/Tk', apt: 'tk', code: 'import tkinter;print(tkinter.TclVersion)' },
+];
 let envInfoPromise = null;
+
+// 共享卷里的库（管理员添加的，可卸载）：读取 *.dist-info 目录名
+function readManagedPackages() {
+  try {
+    return fs
+      .readdirSync(SANDBOX_PKGS_DIR)
+      .filter((n) => n.endsWith('.dist-info'))
+      .map((n) => {
+        const base = n.slice(0, -'.dist-info'.length);
+        const i = base.lastIndexOf('-');
+        return i > 0
+          ? { name: base.slice(0, i), version: base.slice(i + 1) }
+          : { name: base, version: '' };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
 
 function probeEnvInfo() {
   const run = (cmd, args) => {
     try {
       const r = spawnSync(cmd, args, { encoding: 'utf8', timeout: 20000 });
-      return String(r.stdout || '').trim();
+      return { ok: r.status === 0, out: String(r.stdout || '').trim() };
     } catch {
-      return '';
+      return { ok: false, out: '' };
     }
   };
-  const python = run('python3', ['-c', 'import sys;print(".".join(map(str,sys.version_info[:3])))']) || '未知';
+  const py = run('python3', ['-c', 'import sys;print(".".join(map(str,sys.version_info[:3])))']);
+  const python = py.out || '未知';
   let packages = [];
   try {
-    const list = JSON.parse(run('python3', ['-m', 'pip', 'list', '--format=json', '--disable-pip-version-check']) || '[]');
+    const list = JSON.parse(run('python3', ['-m', 'pip', 'list', '--format=json', '--disable-pip-version-check']).out || '[]');
     packages = list
       .map((p) => ({ name: String(p.name || ''), version: String(p.version || '') }))
       .filter((p) => p.name && !PIP_TOOL_PACKAGES.has(p.name.toLowerCase()))
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch { /* pip 不可用时返回空清单 */ }
+
+  // 共享卷里的库：标注给前端区分「管理员添加」与「镜像预装」
+  const managed = readManagedPackages();
+  const managedNames = new Set(managed.map((p) => p.name.toLowerCase()));
+  const pipNames = new Set(packages.map((p) => p.name.toLowerCase()));
+
+  // 系统级组件（apt 提供，pip 看不到）：探测导入是否成功；已被 pip 版本覆盖的不重复列出
+  const system = [];
+  for (const p of SYSTEM_PROBES) {
+    if (pipNames.has(p.name.toLowerCase()) || managedNames.has(p.name.toLowerCase())) continue;
+    const r = run('python3', ['-c', p.code]);
+    if (r.ok && r.out) system.push({ name: p.name, version: r.out, apt: p.apt });
+  }
+
   const tools = [];
   for (const [name, args] of [
     ['g++', ['--version']],
     ['gcc', ['--version']],
     ['make', ['--version']],
   ]) {
-    const out = run(name, args);
+    const out = run(name, args).out;
     const m = out.match(/(\d+\.\d+(\.\d+)?)/);
     if (m) tools.push({ name, version: m[1] });
   }
-  return { python, packages, tools };
+  return {
+    python,
+    packages,
+    managed,
+    system,
+    tools,
+    managedDir: SANDBOX_PKGS_DIR,
+  };
 }
 
 // ── HTTP：健康检查 + 会话登记 ──
@@ -339,7 +395,9 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ ok: true, sessions: sessions.size, pending: pending.size }));
     return;
   }
-  if (req.method === 'GET' && req.url === '/env') {
+  if (req.method === 'GET' && (req.url === '/env' || req.url.startsWith('/env?'))) {
+    // ?refresh=1：管理员刚装/卸完库，强制重新探测
+    if (req.url.includes('refresh=1')) envInfoPromise = null;
     if (!envInfoPromise) envInfoPromise = Promise.resolve().then(probeEnvInfo);
     envInfoPromise
       .then((info) => {

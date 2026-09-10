@@ -3,11 +3,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import AdminUsers from './AdminUsers';
 import AdminMonitor from './AdminMonitor';
 import AdminLogs from './AdminLogs';
+import AdminSandbox from './AdminSandbox';
 
 const TABS = [
   { id: 'users', label: '👥 用户管理' },
   { id: 'monitor', label: '📡 系统监控' },
   { id: 'logs', label: '📜 执行日志' },
+  { id: 'sandbox', label: '🧪 沙箱库' },
 ];
 
 const TAB_BASE = 'relative flex h-11 items-center rounded-lg px-3 text-sm font-medium transition';
@@ -59,6 +61,7 @@ export default function AdminDashboard({ onBack }) {
             {tab === 'users' && <AdminUsers />}
             {tab === 'monitor' && <AdminMonitor />}
             {tab === 'logs' && <AdminLogs />}
+            {tab === 'sandbox' && <AdminSandbox />}
           </motion.div>
         </AnimatePresence>
       </div>

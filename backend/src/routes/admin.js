@@ -14,6 +14,7 @@ const { validate, PASSWORD_RE, PASSWORD_MSG } = require('../middleware/validatio
 const { logger, maskEmail } = require('../utils/logger');
 const piston = require('../services/piston');
 const fileStore = require('../services/fileStore');
+const adminSandbox = require('./adminSandbox');
 
 const router = express.Router();
 router.use(requireAuth, requireAdmin);
@@ -234,5 +235,8 @@ router.get('/monitor', async (req, res) => {
     piston: pistonStatus,
   });
 });
+
+// 终端沙箱第三方库管理（查看 / 安装 / 卸载）
+router.use('/sandbox', adminSandbox);
 
 module.exports = router;

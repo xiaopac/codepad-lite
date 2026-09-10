@@ -9,13 +9,20 @@
 # 画面经 x11vnc 编码后由浏览器 noVNC 分窗显示。
 FROM node:22-slim
 
+# 管理员可通过 .env 的 APT_EXTRA_PACKAGES 追加系统级组件（如 python3-opencv ffmpeg python3-numpy），
+# 追加后需重建本镜像：docker compose up -d --build term-runner
+ARG APT_EXTRA_PACKAGES=""
+
 # node-pty 编译工具 + 两种语言运行时 + 虚拟显示栈 + SDL2 图形库
 # + Mesa 软件渲染（GLX 扩展）：pygame/SDL 建窗口需要 OpenGL 上下文，Xvfb 缺 GLX 会 X Error 退出
+# + tkinter（python3-tk）与中文字体：图形界面程序用得到，pip 装不了，只能镜像内置
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip make g++ bash procps \
+    python3-tk fonts-wqy-microhei \
     xvfb openbox x11vnc \
     libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-mixer-2.0-0 libsdl2-ttf-2.0-0 \
     libgl1 libgl1-mesa-dri libglx-mesa0 \
+    ${APT_EXTRA_PACKAGES} \
  && rm -rf /var/lib/apt/lists/* \
  && pip3 install --no-cache-dir --break-system-packages pygame
 

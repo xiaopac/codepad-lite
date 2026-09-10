@@ -19,6 +19,10 @@ module.exports = {
   TERM_SESSIONS_PER_USER: Number(process.env.TERM_SESSIONS_PER_USER || 2),
   // 环境构建总超时（env-builder 内部最多 3 次换源重试，总预算 400s，需略大于它）
   ENV_BUILD_TIMEOUT_MS: Number(process.env.ENV_BUILD_TIMEOUT_MS || 450000),
+  // 终端沙箱的共享库目录在 env-builder 容器里的路径（管理员后台安装第三方库的目标）
+  SANDBOX_BUILD_TARGET: process.env.SANDBOX_BUILD_TARGET || '/pkgs/sandbox',
+  // 管理员追加的系统级 apt 组件（只用于后台界面提示，实际生效需重建 term-runner 镜像）
+  APT_EXTRA_PACKAGES: process.env.APT_EXTRA_PACKAGES || '',
   // 需求锁定：执行超时 10 秒（Piston 容器端也需 >= 该值，见 docker-compose.yml）
   COMPILE_TIMEOUT_MS: Number(process.env.COMPILE_TIMEOUT_MS || 10000),
   RUN_TIMEOUT_MS: Number(process.env.RUN_TIMEOUT_MS || 10000),

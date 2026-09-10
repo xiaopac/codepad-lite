@@ -10,12 +10,16 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 PKGS_ROOT = '/pkgs'
+# 沙箱共享库目录（管理员在后台给「终端沙箱」装的库）：
+# 该目录被同时挂进 term-runner（只读，PYTHONPATH 指向它），故安装路径必须严格限定。
+SANDBOX_ROOT = os.path.realpath(os.path.join(PKGS_ROOT, 'sandbox'))
 PORT = int(os.environ.get('PORT', '3100'))
 INDEX_URL = os.environ.get('PIP_INDEX_URL', 'https://pypi.org/simple')
 # 镜像源顺序（需求：官方 → 清华 → 阿里云）；用户自定义源时尊重用户选择不切换
@@ -254,6 +258,74 @@ def run_build(version, target, packages, custom_tokens, log_id):
     return result_code or 1, lines
 
 
+def norm_dist(name):
+    """PEP 503 归一化：比较发行版名时忽略大小写与 - _ . 差异。"""
+    return re.sub(r'[-_.]+', '_', str(name)).lower()
+
+
+def uninstall_from_sandbox(name):
+    """按 dist-info/RECORD 卸载沙箱共享库里的一个包。
+
+    只允许操作 SANDBOX_ROOT（沙箱共享卷），且 RECORD 里每条路径都要 realpath 复核在目录内，
+    避免被污染的记录文件删到卷外。返回 (删除条目数, 日志行)。
+    """
+    target = SANDBOX_ROOT
+    msgs = []
+    if not os.path.isdir(target):
+        return 0, [f'沙箱库目录不存在：{target}']
+    norm = norm_dist(name)
+    dist_infos = []
+    for entry in os.listdir(target):
+        if not entry.endswith('.dist-info'):
+            continue
+        base = entry[: -len('.dist-info')]
+        proj = base.rsplit('-', 1)[0] if '-' in base else base
+        if norm_dist(proj) == norm:
+            dist_infos.append(entry)
+    if not dist_infos:
+        return 0, [f'未找到已安装的 {name}（可能未安装或由镜像预装）']
+
+    removed = 0
+    for di in dist_infos:
+        di_path = os.path.join(target, di)
+        record = os.path.join(di_path, 'RECORD')
+        rels = []
+        if os.path.isfile(record):
+            with open(record, 'r', encoding='utf-8', errors='replace') as fh:
+                for line in fh:
+                    rel = line.split(',', 1)[0].strip()
+                    if rel:
+                        rels.append(rel)
+        for rel in rels:
+            full = os.path.realpath(os.path.join(target, rel))
+            if full == target or not full.startswith(target + os.sep):
+                msgs.append(f'跳过越界路径：{rel}')
+                continue
+            try:
+                if os.path.isdir(full) and not os.path.islink(full):
+                    os.rmdir(full)
+                else:
+                    os.remove(full)
+                removed += 1
+            except FileNotFoundError:
+                pass
+            except OSError as err:
+                msgs.append(f'无法删除 {rel}：{err}')
+        shutil.rmtree(di_path, ignore_errors=True)
+        msgs.append(f'已移除 {di}（含 {len(rels)} 条记录）')
+
+    # 清理卸载后留下的空目录（只删空目录，不动有内容的）
+    for root, _dirs, _files in os.walk(target, topdown=False):
+        if root == target:
+            continue
+        try:
+            if not os.listdir(root):
+                os.rmdir(root)
+        except OSError:
+            pass
+    return removed, msgs
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -280,6 +352,36 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(404, {'error': 'not found'})
 
     def do_POST(self):
+        if self.path == '/uninstall':
+            try:
+                length = int(self.headers.get('Content-Length', 0) or 0)
+                body = json.loads(self.rfile.read(length) or b'{}')
+            except (ValueError, json.JSONDecodeError):
+                return self._reply(400, {'error': 'invalid json'})
+            packages = body.get('packages') or ([body['package']] if body.get('package') else [])
+            if not isinstance(packages, list) or not (1 <= len(packages) <= 20):
+                return self._reply(400, {'error': 'packages must be 1-20 names'})
+            for p in packages:
+                if not PKG_RE.match(str(p)):
+                    return self._reply(400, {'error': 'invalid package name: ' + str(p)})
+
+            total = 0
+            results = []
+            lines = []
+            for p in packages:
+                removed, msgs = uninstall_from_sandbox(str(p))
+                total += removed
+                results.append({'package': str(p), 'removed': removed, 'messages': msgs})
+                lines.append(f'$ pip uninstall {p}（沙箱共享库）')
+                lines.extend(msgs)
+            print(f'[uninstall] {", ".join(str(p) for p in packages)} -> {total} files', flush=True)
+            return self._reply(200, {
+                'success': True,
+                'removed': total,
+                'results': results,
+                'log': '\n'.join(lines[-LOG_MAX_LINES:]),
+            })
+
         if self.path != '/build':
             return self._reply(404, {'error': 'not found'})
         try:
@@ -307,10 +409,12 @@ class Handler(BaseHTTPRequestHandler):
 
         python_root = os.path.realpath(os.path.join(PKGS_ROOT, 'python'))
         real = os.path.realpath(target)
-        if not real.startswith(python_root + os.sep):
-            return self._reply(400, {'error': 'target outside /pkgs/python'})
-        if not real.endswith(os.path.join('lib', 'python' + version, 'site-packages')):
-            return self._reply(400, {'error': 'target must be the runtime site-packages'})
+        is_env_target = real.startswith(python_root + os.sep) and real.endswith(
+            os.path.join('lib', 'python' + version, 'site-packages'))
+        # 沙箱共享库：整卷就是 site-packages，路径必须是那个固定目录本身
+        is_sandbox_target = real == SANDBOX_ROOT
+        if not (is_env_target or is_sandbox_target):
+            return self._reply(400, {'error': 'target must be a runtime site-packages or the sandbox packages root'})
 
         os.makedirs(real, exist_ok=True)
         _LOG_SEQ[0] += 1
