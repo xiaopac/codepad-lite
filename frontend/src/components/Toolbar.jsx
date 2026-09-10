@@ -8,7 +8,8 @@ import { toast } from '../store/toastStore';
 import { runLanguageFromName } from '../utils/language';
 
 // ── 项目 Python 环境选择器（下拉） ──
-function EnvSelector({ onOpenEnvironments }) {
+// visible：仅当前打开的是 .py 文件时显示（C / C++ / 文本文件用不到 Python 环境）
+function EnvSelector({ onOpenEnvironments, visible = true }) {
   const environments = useProjectStore((s) => s.environments);
   const currentProject = useProjectStore((s) => s.currentProject);
   const bindEnvironment = useProjectStore((s) => s.bindEnvironment);
@@ -29,6 +30,8 @@ function EnvSelector({ onOpenEnvironments }) {
     window.addEventListener('pointerdown', close);
     return () => window.removeEventListener('pointerdown', close);
   }, [open]);
+
+  if (!visible) return null;
 
   const bound = environments.find((e) => e.id === currentProject?.environment_id);
   const label = bound ? `🐍 ${bound.name} · ${bound.python_version}` : '🐍 Python 环境';
@@ -113,6 +116,8 @@ export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenEn
 
   // 仅 c / cpp / python 可运行（.txt 只读预览）
   const canRun = Boolean(file) && Boolean(runLanguageFromName(file?.name)) && !running;
+  // 当前文件是否 Python（决定是否显示「项目使用的 Python 环境」）
+  const isPythonFile = runLanguageFromName(file?.name) === 'python';
 
   const handleLogout = () => {
     useAuthStore.getState().clearAuth();
@@ -184,8 +189,8 @@ export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenEn
         )}
       </button>
 
-      {/* Python 环境选择器 */}
-      <EnvSelector onOpenEnvironments={onOpenEnvironments} />
+      {/* Python 环境选择器：仅打开的 .py 文件时显示 */}
+      <EnvSelector visible={isPythonFile} onOpenEnvironments={onOpenEnvironments} />
 
       {/* 字号调节（默认 16px，移动端友好） */}
       <div className="glass flex shrink-0 items-center rounded-xl">
