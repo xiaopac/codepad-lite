@@ -84,6 +84,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
       PISTON_URL: http://piston:2000
       ENV_BUILDER_URL: http://env-builder:3100
+      TERM_RUNNER_URL: http://term-runner:4100
       DB_PATH: /app/data/codepad.db
       STORAGE_DIR: /app/storage
       LOG_DIR: /app/logs
@@ -91,9 +92,37 @@ services:
       - db_data:/app/data
       - storage_data:/app/storage
       - logs_data:/app/logs
+    networks:
+      - default
+      - termnet
     mem_limit: 512m # 后端实际占用约 100MB，留足余量
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------
+  # 交互式终端沙箱（隐藏页 /web，仅管理员）：node-pty 伪终端会话
+  # 只挂 internal 网络：沙箱内进程无法访问外网（安全设计）
+  # ---------------------------------------------------------------
+  term-runner:
+    build: ./term-runner
+    container_name: codepad-term-runner
+    restart: unless-stopped
+    environment:
+      PORT: 4100
+      MAX_SESSIONS: ${TERM_MAX_SESSIONS:-20}
+    tmpfs:
+      - /tmp:size=256m,mode=1777 # 会话目录：内存盘，重启即清空
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - termnet
+    mem_limit: 768m # 20 个会话 × ulimit 512MB 为峰值理论值；实际由会话数与闲置回收控制
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 20s
       timeout: 8s
       retries: 5
@@ -125,3 +154,8 @@ volumes:
   db_data:
   storage_data:
   logs_data:
+
+networks:
+  # 终端沙箱专用内网：internal = 无外网出口（沙箱进程无法联网）
+  termnet:
+    internal: true

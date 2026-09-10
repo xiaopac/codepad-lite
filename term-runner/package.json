@@ -1,0 +1,11 @@
+{
+  "name": "codepad-term-runner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CodePad Lite interactive terminal sandbox (node-pty)",
+  "main": "server.js",
+  "dependencies": {
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  }
+}

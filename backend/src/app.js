@@ -12,6 +12,7 @@ const projectRoutes = require('./routes/projects');
 const executeRoutes = require('./routes/execute');
 const adminRoutes = require('./routes/admin');
 const environmentRoutes = require('./routes/environments');
+const terminalRoutes = require('./routes/terminal');
 
 const app = express();
 
@@ -63,6 +64,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/execute', executeRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/environments', environmentRoutes);
+app.use('/api/terminal', terminalRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
