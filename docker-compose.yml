@@ -85,6 +85,8 @@ services:
       PISTON_URL: http://piston:2000
       ENV_BUILDER_URL: http://env-builder:3100
       TERM_RUNNER_URL: http://term-runner:4100
+      # 每用户同时可持有的交互终端会话数
+      TERM_SESSIONS_PER_USER: ${TERM_SESSIONS_PER_USER:-2}
       DB_PATH: /app/data/codepad.db
       STORAGE_DIR: /app/storage
       LOG_DIR: /app/logs
@@ -113,7 +115,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: 4100
-      MAX_SESSIONS: ${TERM_MAX_SESSIONS:-20}
+      MAX_SESSIONS: ${TERM_MAX_SESSIONS:-30}
     tmpfs:
       - /tmp:size=256m,mode=1777 # 会话目录：内存盘，重启即清空
     security_opt:

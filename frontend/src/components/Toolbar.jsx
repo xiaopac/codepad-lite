@@ -107,6 +107,9 @@ export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenEn
   const running = useUiStore((s) => s.running);
   const runCode = useUiStore((s) => s.runCode);
   const setProfileOpen = useUiStore((s) => s.setProfileOpen);
+  const startTerminal = useUiStore((s) => s.startTerminal);
+  const termStatus = useUiStore((s) => s.termStatus);
+  const termRunning = ['starting', 'connecting', 'running'].includes(termStatus);
 
   // 仅 c / cpp / python 可运行（.txt 只读预览）
   const canRun = Boolean(file) && Boolean(runLanguageFromName(file?.name)) && !running;
@@ -161,6 +164,23 @@ export default function Toolbar({ projectName, onBack, onToggleSidebar, onOpenEn
             <span className="text-lg leading-none">▶</span>
             <span>运行</span>
           </>
+        )}
+      </button>
+
+      {/* 💻 终端按钮：以交互终端运行当前文件（弹出底部终端面板）
+          运行时保持可点：点击 = 重新展开面板（停止请用面板内 ⏹ 按钮） */}
+      <button
+        onClick={startTerminal}
+        disabled={!canRun || running}
+        className="relative flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/20 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
+        title="以交互终端运行当前文件（可边运行边输入）"
+      >
+        💻 <span className="hidden sm:inline">终端</span>
+        {termRunning && (
+          <span
+            className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400"
+            style={{ boxShadow: '0 0 8px rgba(52,211,153,0.9)' }}
+          />
         )}
       </button>
 

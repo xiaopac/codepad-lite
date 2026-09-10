@@ -1,23 +1,23 @@
-// 交互式终端（隐藏页 /web，仅管理员）：会话创建
+// 交互式终端：会话创建（所有已登录用户可用，每人并发配额）
 // WebSocket 流式代理见 terminalWs.js（由 server.js 挂载）
 const express = require('express');
 const { body } = require('express-validator');
 const config = require('../config');
 const HttpError = require('../utils/HttpError');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const { logger, maskEmail } = require('../utils/logger');
+const { tryAcquire } = require('../terminalSessions');
 
 const router = express.Router();
 router.use(requireAuth);
 
-// POST /api/terminal/sessions  { language: 'python'|'cpp', code } -> { session_id }
+// POST /api/terminal/sessions  { language: 'python'|'cpp'|'c', code } -> { session_id }
 // 登记代码到 term-runner；真正的 PTY 进程在 WebSocket 连接时才启动
 router.post(
   '/sessions',
-  requireAdmin, // 隐藏页仅管理员可用（前端也有守卫，此处是硬闸门）
   validate([
-    body('language').isIn(['python', 'cpp']).withMessage('仅支持 python / cpp'),
+    body('language').isIn(['python', 'cpp', 'c']).withMessage('仅支持 python / cpp / c'),
     body('code').isString().withMessage('code 必须是字符串'),
   ]),
   async (req, res) => {
@@ -40,6 +40,11 @@ router.post(
     const data = await r.json().catch(() => null);
     if (!r.ok) {
       throw new HttpError(r.status === 429 ? 429 : 502, data?.error || '终端沙箱服务异常');
+    }
+
+    // 每用户并发配额（登记即占用，WS 关闭释放，2 分钟未连接自动释放）
+    if (!tryAcquire(req.user.id, data.session_id)) {
+      throw new HttpError(429, `终端会话已达上限（每人 ${config.TERM_SESSIONS_PER_USER} 个），请先停止其他终端`);
     }
     logger.info(`[term] ${maskEmail(req.user.email)} 创建终端会话（${language}，${code.length}B）`);
     res.json(data);

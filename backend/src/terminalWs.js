@@ -8,6 +8,7 @@ const config = require('./config');
 const db = require('./db');
 const { isAdminUser } = require('./middleware/auth');
 const { logger } = require('./utils/logger');
+const { release } = require('./terminalSessions');
 
 function attachTerminalWs(server) {
   const wss = new WebSocketServer({ noServer: true });
@@ -32,11 +33,11 @@ function attachTerminalWs(server) {
       socket.destroy();
       return;
     }
-    // 2. 管理员闸门（每次握手都查库，权限变更即时生效）
+    // 2. 鉴权 + 三态闸门（所有 active 用户可用，管理员豁免状态闸门）
     const user = db
       .prepare('SELECT id, email, role, status FROM users WHERE id = ?')
       .get(payload.id);
-    if (!isAdminUser(user) || user.status !== 'active') {
+    if (!user || (user.status !== 'active' && !isAdminUser(user))) {
       socket.destroy();
       return;
     }
@@ -49,18 +50,21 @@ function attachTerminalWs(server) {
 
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.sessionId = sessionId;
+      ws.userId = user.id;
       wss.emit('connection', ws, req);
     });
   });
 
   wss.on('connection', (ws) => {
     const sessionId = ws.sessionId;
+    const userId = ws.userId;
     // 连接 term-runner（同容器网络，http 配置转 ws）
     const upstreamUrl = `${config.TERM_RUNNER_URL.replace(/^http/, 'ws')}/ws?session=${encodeURIComponent(sessionId)}`;
     let up;
     try {
       up = new WebSocket(upstreamUrl);
     } catch {
+      release(userId, sessionId); // 释放每用户配额
       ws.close(1011, '终端服务不可用');
       return;
     }
@@ -68,6 +72,7 @@ function attachTerminalWs(server) {
     const kill = () => {
       if (closed) return;
       closed = true;
+      release(userId, sessionId); // WebSocket 关闭 = 会话结束，释放配额
       try { ws.close(); } catch { /* 忽略 */ }
       try { up.close(); } catch { /* 忽略 */ }
     };

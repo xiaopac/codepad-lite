@@ -4,6 +4,7 @@ import { useProjectStore } from '../store/projectStore';
 import Toolbar from './Toolbar';
 import FileSidebar from './FileSidebar';
 import EditorPane from './EditorPane';
+import TerminalPanel from './TerminalPanel';
 import OutputPanel from './OutputPanel';
 
 // 桌面端（md 及以上）侧栏常驻；移动端为滑入抽屉
@@ -101,6 +102,8 @@ export default function Workspace({ onOpenEnvironments }) {
           ) : (
             <>
               <EditorPane />
+              {/* 交互终端（收起不中断） + 批处理控制台：终端打开时控制台自动收起 */}
+              <TerminalPanel />
               <OutputPanel />
             </>
           )}

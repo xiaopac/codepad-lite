@@ -89,6 +89,19 @@ function startSession(sessionId) {
       return { error: `编译失败：\n${errOut}` };
     }
     cmd = `cd "${dir}" && ulimit -v 524288 && ulimit -t 300 && ./main`;
+  } else if (spec.language === 'c') {
+    fs.writeFileSync(path.join(dir, 'main.c'), spec.code);
+    const cc = spawnSync('gcc', ['-O2', '-o', 'main', 'main.c'], {
+      cwd: dir,
+      timeout: 30000,
+      encoding: 'utf8',
+    });
+    if (cc.status !== 0) {
+      const errOut = String(cc.stderr || cc.stdout || '未知编译错误').slice(0, 4000);
+      fs.rmSync(dir, { recursive: true, force: true });
+      return { error: `编译失败：\n${errOut}` };
+    }
+    cmd = `cd "${dir}" && ulimit -v 524288 && ulimit -t 300 && ./main`;
   } else {
     fs.rmSync(dir, { recursive: true, force: true });
     return { error: '不支持的语言' };
@@ -128,9 +141,9 @@ const server = http.createServer((req, res) => {
       try { spec = JSON.parse(body || '{}'); } catch { spec = {}; }
       const language = String(spec.language || '');
       const code = String(spec.code || '');
-      if (language !== 'python' && language !== 'cpp') {
+      if (language !== 'python' && language !== 'cpp' && language !== 'c') {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: '仅支持 python / cpp' }));
+        res.end(JSON.stringify({ error: '仅支持 python / cpp / c' }));
         return;
       }
       if (!code.trim()) {
