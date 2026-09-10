@@ -25,6 +25,7 @@ export const useUiStore = create((set, get) => ({
   termStatus: 'idle', // idle | starting | connecting | running | closed | error
   termStatusText: '',
   termHeight: 320,
+  termWinOpen: false, // pygame 程序窗口浮层（noVNC 画面）
 
   setProfileOpen: (v) => set({ profileOpen: v }),
   outputHeight: initialOutputHeight(),
@@ -36,8 +37,10 @@ export const useUiStore = create((set, get) => ({
   setTermOpen: (v) => set({ termOpen: v }),
   setTermHeight: (h) => set({ termHeight: h }),
   setTermStatus: (status, text = '') => set({ termStatus: status, termStatusText: text }),
-  // 停止终端：清掉会话（TerminalScreen 随之关闭 WebSocket → 沙箱回收进程）
-  stopTerminal: () => set({ termSession: null, termStatus: 'idle', termStatusText: '' }),
+  setTermWinOpen: (v) => set({ termWinOpen: v }),
+  // 停止终端：清掉会话（TerminalScreen 随之关闭 WebSocket → 沙箱回收进程），并关闭程序窗口
+  stopTerminal: () =>
+    set({ termSession: null, termStatus: 'idle', termStatusText: '', termWinOpen: false }),
 
   // 清空控制台（输出 + 输入一起清掉）
   clearConsole: () => set({ stdin: '', result: null, runError: null, resultAt: 0 }),

@@ -23,6 +23,7 @@ export default function TerminalPanel() {
   const termStatus = useUiStore((s) => s.termStatus);
   const termStatusText = useUiStore((s) => s.termStatusText);
   const stopTerminal = useUiStore((s) => s.stopTerminal);
+  const setTermWinOpen = useUiStore((s) => s.setTermWinOpen);
 
   const panelRef = useRef(null);
   const screenRef = useRef(null);
@@ -81,6 +82,14 @@ export default function TerminalPanel() {
               ● {meta.label}
               {termStatusText ? <span className="text-slate-500"> · {termStatusText}</span> : null}
             </span>
+            <button
+              onClick={() => setTermWinOpen(true)}
+              disabled={!termSession}
+              className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/20 disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-600"
+              title="显示程序窗口（pygame 等图形程序弹窗）"
+            >
+              🪟 窗口
+            </button>
             <button
               onClick={stopTerminal}
               className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-rose-400/40 bg-rose-500/10 px-2.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/25"

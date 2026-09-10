@@ -22,7 +22,10 @@ function attachTerminalWs(server) {
       searchParams = url.searchParams;
     } catch { /* 非法 URL */ }
 
-    if (pathname !== '/api/terminal/ws') return; // 非终端连接，不处理
+    // 两条通道：终端流（/api/terminal/ws）与画面流（/api/terminal/vncws，pygame 弹窗）
+    const isTerm = pathname === '/api/terminal/ws';
+    const isVnc = pathname === '/api/terminal/vncws';
+    if (!isTerm && !isVnc) return; // 非终端连接，不处理
 
     // 1. JWT 鉴权（query token）
     const token = searchParams.get('token') || '';
@@ -51,6 +54,7 @@ function attachTerminalWs(server) {
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.sessionId = sessionId;
       ws.userId = user.id;
+      ws.kind = isVnc ? 'vnc' : 'term';
       wss.emit('connection', ws, req);
     });
   });
@@ -58,13 +62,14 @@ function attachTerminalWs(server) {
   wss.on('connection', (ws) => {
     const sessionId = ws.sessionId;
     const userId = ws.userId;
-    // 连接 term-runner（同容器网络，http 配置转 ws）
-    const upstreamUrl = `${config.TERM_RUNNER_URL.replace(/^http/, 'ws')}/ws?session=${encodeURIComponent(sessionId)}`;
+    const kind = ws.kind === 'vnc' ? 'vnc' : 'term';
+    // 连接 term-runner（同容器网络，http 配置转 ws；kind 决定 /ws 或 /vnc 通道）
+    const upstreamUrl = `${config.TERM_RUNNER_URL.replace(/^http/, 'ws')}/${kind === 'vnc' ? 'vnc' : 'ws'}?session=${encodeURIComponent(sessionId)}`;
     let up;
     try {
       up = new WebSocket(upstreamUrl);
     } catch {
-      release(userId, sessionId); // 释放每用户配额
+      if (kind === 'term') release(userId, sessionId); // 只有终端通道关闭才释放配额（画面通道不影响会话）
       ws.close(1011, '终端服务不可用');
       return;
     }
@@ -72,23 +77,27 @@ function attachTerminalWs(server) {
     const kill = () => {
       if (closed) return;
       closed = true;
-      release(userId, sessionId); // WebSocket 关闭 = 会话结束，释放配额
+      if (kind === 'term') release(userId, sessionId); // 终端 WS 关闭 = 会话结束，释放配额
       try { ws.close(); } catch { /* 忽略 */ }
       try { up.close(); } catch { /* 忽略 */ }
     };
 
     up.on('open', () => {
-      // 浏览器 → term-runner（按键输入）
-      ws.on('message', (raw) => {
+      // 浏览器 → term-runner：终端=文本按键，画面=二进制 RFB 帧
+      ws.on('message', (raw, isBinary) => {
         if (up.readyState === WebSocket.OPEN) {
-          try { up.send(raw.toString()); } catch { /* 忽略 */ }
+          try {
+            up.send(kind === 'vnc' ? raw : raw.toString(), { binary: kind === 'vnc' || isBinary });
+          } catch { /* 忽略 */ }
         }
       });
     });
-    up.on('message', (raw) => {
-      // term-runner → 浏览器（终端输出）
+    up.on('message', (raw, isBinary) => {
+      // term-runner → 浏览器：同样按通道保持原始字节（VNC 帧绝不可 toString）
       if (ws.readyState === WebSocket.OPEN) {
-        try { ws.send(raw.toString()); } catch { /* 忽略 */ }
+        try {
+          ws.send(kind === 'vnc' ? raw : raw.toString(), { binary: kind === 'vnc' || isBinary });
+        } catch { /* 忽略 */ }
       }
     });
     up.on('error', (err) => {

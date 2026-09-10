@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useProjectStore } from '../store/projectStore';
 import Toolbar from './Toolbar';
@@ -6,6 +6,8 @@ import FileSidebar from './FileSidebar';
 import EditorPane from './EditorPane';
 import TerminalPanel from './TerminalPanel';
 import OutputPanel from './OutputPanel';
+// pygame 程序窗口：noVNC 体积大，首次点「🪟 窗口」时才加载
+const TermWindow = lazy(() => import('./TermWindow'));
 
 // 桌面端（md 及以上）侧栏常驻；移动端为滑入抽屉
 function useIsDesktop() {
@@ -63,6 +65,10 @@ export default function Workspace({ onOpenEnvironments }) {
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onOpenEnvironments={onOpenEnvironments}
       />
+      {/* pygame 程序窗口浮层（懒加载 noVNC，portal 到 body，与终端会话联动） */}
+      <Suspense fallback={null}>
+        <TermWindow />
+      </Suspense>
 
       {autosaveError && (
         <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-300/90">
