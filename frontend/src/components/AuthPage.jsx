@@ -5,27 +5,22 @@ import { useAuthStore } from '../store/authStore';
 import { useProjectStore } from '../store/projectStore';
 import { useEditorStore } from '../store/editorStore';
 import { api } from '../api/client';
+import LandingSections from './LandingSections';
 
 const TAB_BASE = 'h-11 flex-1 rounded-lg text-base font-medium transition';
 const TAB_ACTIVE = 'bg-gradient-to-r from-cyan-400/25 to-blue-500/25 text-cyan-100 shadow-neon-cyan';
 const TAB_IDLE = 'text-slate-400 hover:text-slate-200';
 
-const FEATURES = [
-  { icon: '🚀', title: '在线编译运行', desc: 'C / C++ / Python 即时编译执行，10 秒超时保护，结果毫秒级返回' },
-  { icon: '📁', title: '项目工作区', desc: '文件夹式项目管理、多文件组织，自动保存永不丢代码' },
-  { icon: '🐍', title: '自定义环境', desc: '任意 Python 版本 + 第三方库，numpy / pygame 开箱即装' },
-  { icon: '🎨', title: '赛博编辑器', desc: 'Monaco 内核 + 智能补全 + 自定义背景，科技感拉满' },
-  { icon: '🛡', title: '企业级治理', desc: '邮箱注册审核、限流防护、沙箱隔离，安全可控' },
-  { icon: '📱', title: 'iPad 优先', desc: '44pt 触控按钮、软键盘自适应，移动端原生手感' },
+const STACK = [
+  'C', 'C++', 'Python', 'Monaco Editor', 'xterm.js', 'noVNC', 'node-pty',
+  'Docker', 'Piston', 'Express', 'SQLite', 'React', 'Tailwind CSS', 'Framer Motion',
 ];
 
-const STACK = ['C', 'C++', 'Python', 'React', 'Monaco Editor', 'Docker', 'SQLite', 'Piston', 'Tailwind CSS', 'Zustand', 'Framer Motion'];
-
 const STATS = [
-  ['50MB', '免费存储'],
   ['3', '支持语言'],
+  ['60+', 'Wiki 小节'],
+  ['50MB', '免费存储'],
   ['10s', '沙箱超时'],
-  ['∞', '无限项目'],
 ];
 
 // ── 登录/注册卡片（原 AuthPage 逻辑，无改动） ──
@@ -322,27 +317,8 @@ export default function AuthPage() {
           </motion.div>
         </section>
 
-        {/* 特性展示 */}
-        <section className="mx-auto max-w-5xl px-4 pb-14">
-          <h2 className="text-center text-2xl font-bold tracking-wider">为什么选择 CodePad</h2>
-          <p className="mt-2 text-center text-sm text-slate-500">从写下第一行代码到跑出结果，只需要三秒</p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-60px' }}
-                transition={{ duration: 0.4, delay: (i % 3) * 0.08, ease: 'easeOut' }}
-                className="glass rounded-2xl p-5 transition hover:border-cyan-400/40 hover:shadow-neon-cyan"
-              >
-                <div className="text-3xl">{f.icon}</div>
-                <h3 className="mt-3 font-semibold text-slate-100">{f.title}</h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-500">{f.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
+        {/* 中下部展示区：为什么选择 / 实况演示 / 代码运行结果 / 使用流程 / 能力对照 */}
+        <LandingSections />
 
         {/* 数据条 */}
         <section className="border-y border-white/10 bg-white/[0.03] py-10">
@@ -377,7 +353,16 @@ export default function AuthPage() {
               target="_blank"
               rel="noreferrer"
             >
-              github.com/xiaopac/codepad-lite
+              GitHub
+            </a>{' '}
+            ·{' '}
+            <a
+              className="text-cyan-300 transition hover:underline"
+              href="https://gitee.com/xiaopac/codepad-lite"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Gitee
             </a>
           </p>
           <p className="mt-2 text-xs text-slate-600">CodePad Lite © 2026</p>
