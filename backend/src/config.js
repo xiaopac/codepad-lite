@@ -13,7 +13,7 @@ module.exports = {
   PISTON_URL: (process.env.PISTON_URL || 'http://localhost:2000').replace(/\/+$/, ''),
   // 自定义 Python 环境构建器（env-builder 服务）
   ENV_BUILDER_URL: (process.env.ENV_BUILDER_URL || 'http://localhost:3100').replace(/\/+$/, ''),
-  // 交互式终端沙箱（term-runner 服务，工作区「终端」按钮与隐藏页 /web 使用）
+  // 交互式终端沙箱（term-runner 服务，工作区「💻 终端运行」与 pygame 弹窗使用）
   TERM_RUNNER_URL: (process.env.TERM_RUNNER_URL || 'http://localhost:4100').replace(/\/+$/, ''),
   // 每位用户同时可持有的终端会话数（普通用户放开后用于公平性控制）
   TERM_SESSIONS_PER_USER: Number(process.env.TERM_SESSIONS_PER_USER || 2),

@@ -19,8 +19,6 @@ const EnvironmentsView = lazy(() => import('./components/EnvironmentsView'));
 const ProfilePanel = lazy(() => import('./components/ProfilePanel'));
 // Wiki 侧边栏体积较大（react-markdown + highlight.js），点击图标时才加载
 const WikiSidebar = lazy(() => import('./components/Wiki/WikiSidebar'));
-// 终端实验室：隐藏页 /web（仅管理员），xterm.js 体积大，进入时才加载
-const TermLab = lazy(() => import('./components/TermLab'));
 
 // 路由级页面转场：滑动淡入（仅 opacity/transform，iPad 上 GPU 合成流畅）
 const pageTransition = {
@@ -113,16 +111,6 @@ function AdminPage() {
   );
 }
 
-// ── /web 终端实验室（隐藏页，返回指向工作区） ──
-function TermLabPage() {
-  const navigate = useNavigate();
-  return (
-    <Suspense fallback={<SuspenseFallback />}>
-      <TermLab onBack={() => navigate('/project')} />
-    </Suspense>
-  );
-}
-
 // 路由切换时回到顶部
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -163,18 +151,6 @@ function AnimatedRoutes() {
               <RequireAdmin>
                 <Page>
                   <AdminPage />
-                </Page>
-              </RequireAdmin>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/web"
-          element={
-            <RequireAuth>
-              <RequireAdmin>
-                <Page>
-                  <TermLabPage />
                 </Page>
               </RequireAdmin>
             </RequireAuth>
