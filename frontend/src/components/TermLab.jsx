@@ -349,28 +349,31 @@ export default function TermLab({ onBack }) {
         </motion.section>
       </div>
 
-      {/* ── 右下角悬浮按钮：打开/收起终端（面板打开时自动浮到面板上方） ── */}
-      <motion.button
-        animate={{ bottom: terminalOpen ? terminalHeight + 20 : 16 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
-        onClick={() => setTerminalOpen((v) => !v)}
-        className={`absolute right-4 z-20 flex h-12 items-center gap-2 rounded-full border px-4 text-sm font-semibold shadow-[0_0_18px_rgba(0,240,255,0.35)] backdrop-blur-xl transition-shadow hover:shadow-[0_0_28px_rgba(0,240,255,0.55)] ${
-          terminalOpen
-            ? 'border-cyan-400/50 bg-cyan-400/15 text-cyan-200'
-            : 'border-cyan-400/50 bg-[#0a0a12]/80 text-cyan-200'
-        }`}
-        title={terminalOpen ? '收起终端（会话继续运行）' : '打开终端'}
-        aria-label={terminalOpen ? '收起终端' : '打开终端'}
-      >
-        <span>🖥</span>
-        <span>{terminalOpen ? '收起终端' : '打开终端'}</span>
-        {!terminalOpen && sessionRunning && (
-          <span
-            className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-emerald-300/60 bg-emerald-400"
-            style={{ boxShadow: '0 0 8px rgba(52,211,153,0.9)' }}
-          />
+      {/* ── 右下角悬浮按钮：点开终端后自己消失（弹簧动画），收起终端时再浮现 ── */}
+      <AnimatePresence>
+        {!terminalOpen && (
+          <motion.button
+            key="term-fab"
+            initial={{ opacity: 0, scale: 0.6, y: 24 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.6, y: 24 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+            onClick={() => setTerminalOpen(true)}
+            className="absolute bottom-4 right-4 z-20 flex h-12 items-center gap-2 rounded-full border border-cyan-400/50 bg-[#0a0a12]/80 px-4 text-sm font-semibold text-cyan-200 shadow-[0_0_18px_rgba(0,240,255,0.35)] backdrop-blur-xl transition-shadow hover:shadow-[0_0_28px_rgba(0,240,255,0.55)]"
+            title="打开终端"
+            aria-label="打开终端"
+          >
+            <span>🖥</span>
+            <span>打开终端</span>
+            {sessionRunning && (
+              <span
+                className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-emerald-300/60 bg-emerald-400"
+                style={{ boxShadow: '0 0 8px rgba(52,211,153,0.9)' }}
+              />
+            )}
+          </motion.button>
         )}
-      </motion.button>
+      </AnimatePresence>
     </div>
   );
 }
