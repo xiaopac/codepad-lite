@@ -25,10 +25,10 @@ const MIN_RATIO = 0.25;
 const MAX_RATIO = 0.72;
 const SAFE = 8;
 
-// 语言标签：C++ 已上线；Python / C 预留
+// 语言标签：C++ / Python 已上线；C 预留
 const TABS = [
   { id: 'cpp', label: 'C++', enabled: true, data: cppWikiData },
-  { id: 'python', label: 'Python', enabled: false, data: pythonWikiData },
+  { id: 'python', label: 'Python', enabled: true, data: pythonWikiData },
   { id: 'c', label: 'C', enabled: false, data: cWikiData },
 ];
 
